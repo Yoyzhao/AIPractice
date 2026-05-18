@@ -415,6 +415,180 @@ class CameraSubscriber:
             cv2.waitKey(1)
         except Exception as e:
             rospy.logerr(e)
+
+### 6.4 Twist消息与运动控制
+
+#### Twist消息类型
+
+`geometry_msgs/Twist` 是ROS中描述机器人线速度和角速度的标准消息类型：
+
+```python
+from geometry_msgs.msg import Twist
+
+twist = Twist()
+twist.linear.x = 0.5   # 线速度 (m/s) - 前进方向
+twist.linear.y = 0.0
+twist.linear.z = 0.0
+twist.angular.x = 0.0
+twist.angular.y = 0.0
+twist.angular.z = 0.3   # 角速度 (rad/s) - 左转
+```
+
+#### 坐标系理解
+
+```
+机器人视角（俯视）：
+                    
+        上（Y轴负方向）
+           ↑
+           |
+           |
+  ←-------●------→  右（X轴正方向）
+           |
+           |
+           ↓
+        下（Y轴正方向）
+```
+
+| 速度分量 | 方向 | 正值动作 |
+|---------|------|---------|
+| `linear.x` | 机器人正前方 | 前进 |
+| `linear.y` | 机器人正左侧 | 左移 |
+| `angular.z` | 绕垂直轴 | 左转（逆时针） |
+
+#### 为什么有xyz三个参数？
+
+Twist是**三维空间的速度消息**，需要描述6个自由度的运动状态：
+
+```python
+twist.linear.x = ...   # X轴线速度（前进/后退）
+twist.linear.y = ...   # Y轴线速度（左/右平移）
+twist.linear.z = ...   # Z轴线速度（上/下）
+twist.angular.x = ...  # 绕X轴旋转（翻滚）
+twist.angular.y = ...  # 绕Y轴旋转（俯仰）
+twist.angular.z = ...  # 绕Z轴旋转（偏航/转向）
+```
+
+| 类型 | 分量 | 运动 | 适用场景 |
+|------|------|------|---------|
+| **linear** | x | 前进/后退 | 机器人前后移动 |
+| **linear** | y | 左移/右移 | 机器人侧向移动 |
+| **linear** | z | 上升/下降 | 无人机升降 |
+| **angular** | x | 翻滚 | 滚筒运动 |
+| **angular** | y | 俯仰 | 抬头/低头 |
+| **angular** | z | 偏航 | 原地左/右转向 |
+
+**为什么代码中其他分量设为0？** 因为竞赛平台是**地面移动机器人**，只能在二维平面运动，不需要垂直移动或翻滚俯仰。
+
+| 机器人类型 | 使用的分量 |
+|-----------|-----------|
+| 地面移动机器人 | linear.x, angular.z |
+| 麦克纳姆轮机器人 | linear.x, linear.y, angular.z |
+| 无人机 | 所有6个分量都可能用到 |
+
+#### 线速度与角速度配合
+
+| 期望运动 | linear.x | angular.z | 效果 |
+|---------|----------|-----------|------|
+| 匀速前进 | 0.5 | 0.0 | 直线前进 |
+| 定半径左转 | 0.5 | 0.3 | 左前方弧线 |
+| 原地左转 | 0.0 | 0.5 | 原地左转 |
+| 急刹停 | 0.0 | 0.0 | 停止 |
+
+**核心原理**：
+- `linear.x` 控制"往前走多快"
+- `angular.z` 控制"转得多快"
+- 两者独立可叠加：同时给值就走弧线
+
+#### 运动学方程（差速机器人）
+
+```
+左轮速度 = linear.x - angular.z ×轮间距/2
+右轮速度 = linear.x + angular.z ×轮间距/2
+```
+
+#### 键盘控制示例
+
+```python
+class KeyboardControl:
+    def __init__(self):
+        self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+        self.speed = 0.5
+        self.turn = 1.0
+        
+        # 移动绑定: 按键 -> (线速度系数, 角速度系数)
+        self.moveBindings = {
+            'w': (1, 0),    # 前进
+            's': (-1, 0),   # 后退
+            'a': (0, 1),    # 左转
+            'd': (0, -1),   # 右转
+        }
+        
+        # 速度调节绑定
+        self.speedBindings = {
+            'q': (1.1, 1.1),  # 加速
+            'z': (0.9, 0.9),  # 减速
+        }
+    
+    def publish_cmd(self, lin_vel, ang_vel):
+        twist = Twist()
+        twist.linear.x = lin_vel
+        twist.angular.z = ang_vel
+        self.cmd_vel_pub.publish(twist)
+
+#### moveBindings 参数详解
+
+元组中的参数是**方向系数**，需要与`speed`和`turn`相乘后才变成实际速度：
+
+```python
+self.moveBindings = {
+    'w': (1, 0),    # (线速度系数, 角速度系数)
+    's': (-1, 0),
+    'a': (0, 1),
+    'd': (0, -1),
+}
+```
+
+| 按键 | 元组(线速度系数, 角速度系数) | 计算方式 | 最终效果 |
+|------|---------------------------|---------|---------|
+| W/w | (1, 0) | speed×1, turn×0 | `linear.x=0.5`, `angular.z=0` → 前进 |
+| S/s | (-1, 0) | speed×-1, turn×0 | `linear.x=-0.5`, `angular.z=0` → 后退 |
+| A/a | (0, 1) | speed×0, turn×1 | `linear.x=0`, `angular.z=1.0` → 左转 |
+| D/d | (0, -1) | speed×0, turn×-1 | `linear.x=0`, `angular.z=-1.0` → 右转 |
+
+#### 自定义组合示例
+
+如果想让A键实现**前进左转**（弧线运动）：
+
+```python
+self.moveBindings = {
+    'w': (1, 0),      # 前进（直线）
+    's': (-1, 0),     # 后退（直线）
+    'a': (1, 1),      # 前进+左转（弧线）← 修改这里
+    'd': (1, -1),     # 前进+右转（弧线）
+}
+```
+
+**计算过程**：按A键时 `linear.x = speed × 1 = 0.5`，`angular.z = turn × 1 = 1.0`
+
+#### speedBindings 参数详解
+
+| 按键 | 缩放因子 | 效果 |
+|------|---------|------|
+| Q/q | (1.1, 1.1) | 线速度和角速度同时×1.1（加速） |
+| Z/z | (0.9, 0.9) | 线速度和角速度同时×0.9（减速） |
+
+#### 常用控制方案对比
+
+```python
+# 方案1：标准差速
+'w': (1, 0), 's': (-1, 0), 'a': (0, 1), 'd': (0, -1)
+
+# 方案2：带弧线前进
+'w': (1, 0), 's': (-1, 0), 'a': (1, 0.5), 'd': (1, -0.5)
+
+# 方案3：漂移风格
+'w': (1, 0), 's': (-1, 0), 'a': (0.5, 1), 'd': (0.5, -1)
 ```
 
 ---

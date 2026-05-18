@@ -108,60 +108,129 @@ roscore
 **Python程序示例（keyboard\_control.ipynb）：**
 
 ```python
-# Jupyter Notebook 单元格 3: 键盘控制程序
+# Jupyter Notebook 单元格: 非阻塞键盘控制程序
 import rospy
-from std_msgs.msg import String
+from geometry_msgs.msg import Twist
+import sys
+import select
 
 class KeyboardControl:
     def __init__(self):
-        # 不再调用rospy.init_node()，因为之前已初始化
-        self.cmd_vel_pub = rospy.Publisher('/cmd_vel', String, queue_size=10)
+        self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         self.rate = rospy.Rate(10)
-        self.current_cmd = "stop"
+        
+        self.speed = rospy.get_param('~speed', 0.5)
+        self.turn = rospy.get_param('~turn', 1.0)
+        
+        self.max_speed = 1.5
+        self.max_turn = 2.0
+        self.min_speed = 0.1
+        
+        self.lin_vel = 0.0
+        self.ang_vel = 0.0
         self.running = True
-
-    def publish_cmd(self, direction):
-        cmd = String()
-        cmd_map = {
-            'w': "forward",
-            's': "backward",
-            'a': "left",
-            'd': "right",
-            'q': "stop"
+        
+        self.moveBindings = {
+            'w': (1, 0),
+            's': (-1, 0),
+            'a': (0, 1),
+            'd': (0, -1),
+            'W': (1, 0),
+            'S': (-1, 0),
+            'A': (0, 1),
+            'D': (0, -1),
         }
-        cmd.data = cmd_map.get(direction, "stop")
-        self.current_cmd = cmd.data
-        self.cmd_vel_pub.publish(cmd)
-        print(f"[键盘控制] 发送指令: {cmd.data}")
-
-    def stop(self):
-        cmd = String()
-        cmd.data = "stop"
-        self.cmd_vel_pub.publish(cmd)
-        print("[键盘控制] 已停止")
-
+        
+        self.speedBindings = {
+            'q': (1.1, 1.1),
+            'z': (0.9, 0.9),
+            'Q': (1.1, 1.1),
+            'Z': (0.9, 0.9),
+        }
+        
+        self.stop_keys = {'x', 'X', ' ', '\x03'}
+    
+    def get_key(self):
+        rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+        if rlist:
+            return sys.stdin.read(1)
+        return ''
+    
+    def update_velocity(self, key):
+        if key in self.moveBindings:
+            dx, dy = self.moveBindings[key]
+            self.lin_vel = self.speed * dx
+            self.ang_vel = self.turn * dy
+            return True, f"移动: 线速度={self.lin_vel:.2f}, 角速度={self.ang_vel:.2f}"
+        
+        elif key in self.speedBindings:
+            scale_lin, scale_ang = self.speedBindings[key]
+            self.speed = max(self.min_speed, min(self.max_speed, self.speed * scale_lin))
+            self.turn = max(self.min_speed, min(self.max_turn, self.turn * scale_ang))
+            return True, f"速度调节: 线速度={self.speed:.2f}, 角速度={self.turn:.2f}"
+        
+        elif key in self.stop_keys:
+            self.lin_vel = 0.0
+            self.ang_vel = 0.0
+            return True, "停止"
+        
+        return False, None
+    
+    def publish_cmd(self):
+        twist = Twist()
+        twist.linear.x = self.lin_vel
+        twist.linear.y = 0.0
+        twist.linear.z = 0.0
+        twist.angular.x = 0.0
+        twist.angular.y = 0.0
+        twist.angular.z = self.ang_vel
+        self.cmd_vel_pub.publish(twist)
+    
+    def print_help(self):
+        print("=" * 60)
+        print("键盘控制已启动 (非阻塞版本)")
+        print("-" * 60)
+        print("移动控制:           速度调节:")
+        print("  W/w = 前进          Q/q = 加速 (×1.1)")
+        print("  S/s = 后退          Z/z = 减速 (×0.9)")
+        print("  A/a = 左转")
+        print("  D/d = 右转")
+        print("-" * 60)
+        print("其他: X/x/空格 = 紧急停止, Ctrl+C = 退出")
+        print(f"当前速度: 线速度={self.speed:.2f}, 角速度={self.turn:.2f}")
+        print("=" * 60)
+    
     def run(self):
-        print("=" * 50)
-        print("键盘控制已启动 (Jupyter Notebook版本)")
-        print("按 W=前进 S=后退 A=左转 D=右转 Q=停止")
-        print("=" * 50)
-
+        self.print_help()
+        
         while self.running and not rospy.is_shutdown():
-            try:
-                key = input("请输入指令: ").strip().lower()
-                if key == 'q':
-                    self.stop()
+            key = self.get_key()
+            
+            if key:
+                if key in ['\x03']:
+                    print("\n[键盘控制] 退出程序")
+                    self.lin_vel = 0.0
+                    self.ang_vel = 0.0
+                    self.publish_cmd()
                     self.running = False
                     break
-                elif key in ['w', 's', 'a', 'd']:
-                    self.publish_cmd(key)
-                else:
-                    print("[键盘控制] 无效指令，请输入W/S/A/D/Q")
-            except EOFError:
-                break
-            except Exception as e:
-                print(f"[键盘控制] 错误: {e}")
-                break
+                
+                updated, msg = self.update_velocity(key)
+                if updated and msg:
+                    print(f"[键盘控制] {msg}")
+            
+            self.publish_cmd()
+            self.rate.sleep()
+        
+        self.lin_vel = 0.0
+        self.ang_vel = 0.0
+        self.publish_cmd()
+        print("[键盘控制] 程序已停止，机器人已停止")
+
+try:
+    rospy.init_node('keyboard_teleop', anonymous=True)
+except:
+    pass
 
 controller = KeyboardControl()
 controller.run()
@@ -227,9 +296,9 @@ print("=" * 50)
 display(button_box, output)
 ```
 
-### 五、摄像头图像获取程序（Jupyter Notebook版本）
+### 五、摄像头图像获取与自动驾驶视觉感知程序（Jupyter Notebook版本）
 
-**程序功能：** 获取并显示头部和底部摄像头图像
+**程序功能：** 获取并显示头部和底部摄像头图像，支持自动驾驶视觉感知处理
 
 **Python程序示例（camera\_viewer.ipynb）：**
 
@@ -249,133 +318,298 @@ import numpy as np                # 数值计算库，用于数组和矩阵运�
 from IPython.display import display, clear_output  # Jupyter显示输出控制
 import ipywidgets as widgets       # Jupyter交互式控件库（按钮、滑块等）
 
-# -------------------- 第二部分：定义摄像头查看器类 --------------------
-class CameraViewer:
-    """摄像头查看器类：负责订阅和显示两个摄像头图像"""
-    
-    def __init__(self):
-        """
-        构造函数：初始化发布者、订阅者和图像缓存
-        """
-        self.bridge = CvBridge()          # 创建ROS图像格式转换对象
-        self.head_image = None           # 缓存头部摄像头最新图像
-        self.bottom_image = None         # 缓存底部摄像头最新图像
+# -------------------- 第二部分：定义自动驾驶视觉感知类 --------------------
+class AutonomousVision:
+    """自动驾驶视觉感知类：负责图像采集、处理和显示"""
 
-        # 创建ROS订阅者，订阅头部摄像头话题
-        # 参数1: 话题名  参数2: 消息类型  参数3: 回调函数
+    def __init__(self):
+        self.bridge = CvBridge()
+        self.head_image = None
+        self.bottom_image = None
+        self.frame_count = 0
+        self.fps = 0
+        self.last_time = time.time()
+
         self.head_sub = rospy.Subscriber('/camera_head/image_raw', Image, self.head_callback)
-        # 创建ROS订阅者，订阅底部摄像头话题
         self.bottom_sub = rospy.Subscriber('/camera_bottom/image_raw', Image, self.bottom_callback)
 
     def head_callback(self, data):
-        """
-        头部摄像头回调函数：当收到新图像时自动调用
-        参数: data - ROS的Image消息对象
-        """
         try:
-            # 将ROS图像消息转换为OpenCV的BGR8格式（cv2.imshow需要BGR格式）
-            # imgmsg_to_cv2(ROS消息, 目标色彩空间) -> OpenCV图像(numpy数组)
             self.head_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-        except Exception as e:  # 如果转换失败（如格式不支持）
-            print(f"头部摄像头错误: {e}")  # 打印错误信息
+        except Exception as e:
+            print(f"头部摄像头错误: {e}")
 
     def bottom_callback(self, data):
-        """
-        底部摄像头回调函数：当收到新图像时自动调用
-        参数: data - ROS的Image消息对象
-        """
         try:
-            # 将ROS图像消息转换为OpenCV的BGR8格式
             self.bottom_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
         except Exception as e:
             print(f"底部摄像头错误: {e}")
 
-    def get_combined_display(self):
-        """
-        获取合并后的显示图像：将两个摄像头画面上下拼接
-        返回: display_img - 合并后的numpy数组图像，如果都没有图像则返回None
-        """
-        # 如果两个图像都没有收到，返回None
+    def preprocess_image(self, frame):
+        """图像预处理：对比度增强"""
+        if frame is None:
+            return None
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        l = clahe.apply(l)
+        enhanced = cv2.merge([l, a, b])
+        return cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
+
+    def detect_edges(self, frame):
+        """边缘检测（Canny算法）"""
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        edges = cv2.Canny(blur, 50, 150)
+        return edges
+
+    def detect_lane_lines(self, frame):
+        """车道线检测（霍夫变换）"""
+        edges = self.detect_edges(frame)
+        height, width = edges.shape
+        mask = np.zeros_like(edges)
+        polygon = np.array([[
+            [0, height], [width // 3, height // 2],
+            [2 * width // 3, height // 2], [width, height]
+        ]], np.int32)
+        cv2.fillPoly(mask, polygon, 255)
+        masked = cv2.bitwise_and(edges, mask)
+        lines = cv2.HoughLinesP(masked, 1, np.pi / 180, 50,
+                                minLineLength=50, maxLineGap=50)
+        return lines
+
+    def draw_lane_lines(self, frame, lines):
+        """绘制车道线"""
+        if lines is None:
+            return frame
+        line_img = np.zeros_like(frame)
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(line_img, (x1, y1), (x2, y2), (0, 255, 0), 3)
+        return cv2.addWeighted(frame, 0.8, line_img, 0.2, 0)
+
+    def detect_vehicles(self, frame):
+        """车辆检测（基于颜色特征）"""
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        lower_red = np.array([0, 100, 100])
+        upper_red = np.array([10, 255, 255])
+        mask_red = cv2.inRange(hsv, lower_red, upper_red)
+        contours, _ = cv2.findContours(mask_red, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        vehicle_count = 0
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area > 500:
+                x, y, w, h = cv2.boundingRect(cnt)
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                vehicle_count += 1
+        return frame, vehicle_count
+
+    def get_display_with_info(self):
+        """获取带自动驾驶感知信息的合并显示图像"""
         if self.head_image is None and self.bottom_image is None:
             return None
 
-        # 创建黑色背景画布（高800像素，宽640像素，3通道BGR）
-        height = 480                 # 每个摄像头显示区域的高度
-        width = 640                  # 每个摄像头显示区域的宽度
-        display_img = np.zeros((height * 2, width, 3), dtype=np.uint8)  # 全黑背景
+        self.frame_count += 1
+        current_time = time.time()
+        if current_time - self.last_time >= 1.0:
+            self.fps = self.frame_count
+            self.frame_count = 0
+            self.last_time = current_time
 
-        # 如果收到头部摄像头图像，则添加到画布上半部分
+        height, width = 360, 640
+        display_img = np.zeros((height * 2, width, 3), dtype=np.uint8)
+
         if self.head_image is not None:
-            # 缩放图像到统一尺寸 (640x480)
-            head_resized = cv2.resize(self.head_image, (width, height))
-            # 将缩放后的图像放入画布的上半部分 [0:480, 0:640]
-            display_img[:height, :] = head_resized
-            # 在图像左上角添加文字标签 "Head Camera"
-            # 参数: 图像, 文字内容, 位置(x,y), 字体, 字号, 颜色(BGR绿色), 粗细
-            cv2.putText(display_img, "Head Camera", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            head = cv2.resize(self.head_image, (width, height))
+            head_processed = self.preprocess_image(head)
+            lines = self.detect_lane_lines(head_processed)
+            head_display = self.draw_lane_lines(head_processed, lines)
+            cv2.putText(head_display, "Head - Lane Detection", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+            cv2.putText(head_display, f"FPS: {self.fps}", (10, 60),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1)
+            display_img[:height, :] = head_display
 
-        # 如果收到底部摄像头图像，则添加到画布下半部分
         if self.bottom_image is not None:
-            # 缩放图像到统一尺寸 (640x480)
-            bottom_resized = cv2.resize(self.bottom_image, (width, height))
-            # 将缩放后的图像放入画布的下半部分 [480:960, 0:640]
-            display_img[height:, :] = bottom_resized
-            # 在图像左上角添加文字标签 "Bottom Camera"
-            cv2.putText(display_img, "Bottom Camera", (10, height + 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            bottom = cv2.resize(self.bottom_image, (width, height))
+            bottom_processed = self.preprocess_image(bottom)
+            bottom_display, vehicle_count = self.detect_vehicles(bottom_processed)
+            cv2.putText(bottom_display, "Bottom - Vehicle Detection", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+            cv2.putText(bottom_display, f"Vehicles: {vehicle_count}", (10, 60),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1)
+            display_img[height:, :] = bottom_display
 
-        return display_img  # 返回合并后的图像
+        return display_img
 
 # -------------------- 第三部分：初始化和显示 --------------------
-# 创建CameraViewer类的实例，启动订阅者
-viewer = CameraViewer()
-
-# 创建Jupyter图像显示控件
-image_widget = widgets.Image()  # 创建Image控件用于显示图像
-
-# 创建垂直布局的容器，包含标题和图像显示区
+vision = AutonomousVision()
+image_widget = widgets.Image()
 display_widget = widgets.VBox([
-    widgets.HTML("<h3>摄像头实时画面</h3>"),  # HTML标题组件
-    image_widget                                          # 图像显示组件
+    widgets.HTML("<h3>自动驾驶视觉感知系统</h3>"),
+    widgets.HTML("<p>Head: Lane Detection | Bottom: Vehicle Detection</p>"),
+    image_widget
 ])
 
-# 打印启动信息到控制台
-print("摄像头查看器已启动")
-print("订阅话题: /camera_head/image_raw, /camera_bottom/image_raw")
+print("=" * 50)
+print("自动驾驶视觉感知系统已启动")
+print("功能: 车道线检测 + 车辆检测 + 实时FPS")
+print("=" * 50)
 
-# 在Jupyter Notebook中显示图像组件
 display(display_widget)
 
-# -------------------- 第四部分：定时更新显示 --------------------
-import time  # 时间库，用于控制帧率
-
-def update_camera_display():
-    """
-    更新摄像头显示函数：获取最新图像并刷新显示
-    """
-    # 调用CameraViewer的方法获取合并后的图像
-    display_img = viewer.get_combined_display()
-    
-    # 如果有图像，则编码为JPEG并更新显示控件
-    if display_img is not None:
-        # 将OpenCV图像编码为JPEG格式（减小数据大小）
-        # imencode(格式, 图像) -> (成功标志, 编码后的字节数据)
-        _, buffer = cv2.imencode('.jpg', display_img)
-        # 将numpy数组转换为字节流，设置到Image控件的值属性
-        image_widget.value = buffer.tobytes()
-
-# 从IPython.display导入清屏函数（虽然在循环中未使用）
-from IPython.display import clear_output
-
-# -------------------- 主循环：持续更新图像显示 --------------------
+# -------------------- 第四部分：主循环 --------------------
 try:
-    while True:  # 无限循环，持续更新
-        update_camera_display()  # 调用更新函数
-        time.sleep(0.1)          # 休眠0.1秒，控制帧率为10 FPS
-except KeyboardInterrupt:  # 捕获Ctrl+C中断
-    print("摄像头查看器已停止")  # 打印停止信息
+    while True:
+        display_img = vision.get_display_with_info()
+        if display_img is not None:
+            _, buffer = cv2.imencode('.jpg', display_img)
+            image_widget.value = buffer.tobytes()
+        time.sleep(0.05)
+except KeyboardInterrupt:
+    print("视觉感知系统已停止")
 ```
+
+**新增功能说明：**
+
+| 功能 | 方法 | 说明 |
+|------|------|------|
+| 图像增强 | `preprocess_image()` | CLAHE对比度增强 |
+| 边缘检测 | `detect_edges()` | Canny边缘提取 |
+| 车道线检测 | `detect_lane_lines()` | 霍夫变换+ROI掩码 |
+| 车辆检测 | `detect_vehicles()` | HSV红色特征+轮廓分析 |
+| 实时FPS | `get_display_with_info()` | 帧率计算与显示 |
+
+### 五-补充：cv2.VideoCapture摄像头测试代码
+
+**程序功能：** 使用OpenCV直接打开摄像头进行测试（不依赖ROS话题）
+
+**适用场景：** 调试本地摄像头、验证摄像头编号、测试图像采集
+
+**Python程序示例：**
+
+```python
+# ============================================================
+# Jupyter Notebook 单元格: cv2.VideoCapture摄像头测试
+# 功能: 直接打开摄像头测试，无需ROS环境
+# ============================================================
+
+import cv2
+import numpy as np
+from IPython.display import display, clear_output
+import ipywidgets as widgets
+
+class CameraTest:
+    """摄像头测试类：使用cv2.VideoCapture直接测试摄像头"""
+
+    def __init__(self):
+        self.cap = None
+        self.cap1 = None
+        self.running = False
+
+    def find_available_cameras(self):
+        """自动检测可用摄像头"""
+        available = []
+        for i in range(5):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                available.append(i)
+                cap.release()
+        return available
+
+    def open_cameras(self, cam0=0, cam1=2):
+        """打开指定编号的摄像头"""
+        self.cap = cv2.VideoCapture(cam0)
+        self.cap1 = cv2.VideoCapture(cam1)
+
+        if not self.cap.isOpened():
+            print(f"警告：无法打开摄像头{cam0}")
+        if not self.cap1.isOpened():
+            print(f"警告：无法打开摄像头{cam1}")
+
+    def read_frames(self):
+        """读取双摄像头画面"""
+        ret0, frame0 = self.cap.read() if self.cap else (False, None)
+        ret1, frame1 = self.cap1.read() if self.cap1 else (False, None)
+        return ret0, frame0, ret1, frame1
+
+    def get_combined_display(self, width=640, height=360):
+        """获取合并显示图像"""
+        ret0, frame0, ret1, frame1 = self.read_frames()
+        if not ret0 and not ret1:
+            return None
+
+        display_img = np.zeros((height * 2, width, 3), dtype=np.uint8)
+
+        if ret0:
+            frame0_resized = cv2.resize(frame0, (width, height))
+            cv2.putText(frame0_resized, f"Camera 0 - Bottom", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+            display_img[:height, :] = frame0_resized
+
+        if ret1:
+            frame1_resized = cv2.resize(frame1, (width, height))
+            cv2.putText(frame1_resized, f"Camera 1 - Head", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+            display_img[height:, :] = frame1_resized
+
+        return display_img
+
+    def release(self):
+        """释放摄像头资源"""
+        if self.cap:
+            self.cap.release()
+        if self.cap1:
+            self.cap1.release()
+        print("摄像头已关闭")
+
+# -------------------- 测试代码 --------------------
+test = CameraTest()
+
+# 方式1：自动检测可用摄像头
+print("检测可用摄像头...")
+available = test.find_available_cameras()
+print(f"可用摄像头编号: {available}")
+
+# 方式2：手动指定摄像头编号
+print("\n打开摄像头0和摄像头2...")
+test.open_cameras(cam0=0, cam1=2)
+
+# 创建显示控件
+image_widget = widgets.Image()
+display(widgets.HTML("<h3>cv2.VideoCapture 摄像头测试</h3>"))
+display(image_widget)
+
+print("=" * 50)
+print("摄像头测试已启动")
+print("按 Ctrl+C 停止")
+print("=" * 50)
+
+# 主循环
+try:
+    while True:
+        display_img = test.get_combined_display()
+        if display_img is not None:
+            _, buffer = cv2.imencode('.jpg', display_img)
+            image_widget.value = buffer.tobytes()
+except KeyboardInterrupt:
+    print("\n停止测试")
+finally:
+    test.release()
+```
+
+**两种摄像头获取方式对比：**
+
+| 方式 | 代码 | 优点 | 缺点 |
+|------|------|------|------|
+| **cv2.VideoCapture** | `cv2.VideoCapture(0)` | 简单直接、无需ROS、可离线使用 | 无法跨设备、需手动管理 |
+| **ROS话题订阅** | `rospy.Subscriber(...)` | 跨进程、设备无关、已封装 | 需ROS环境、依赖话题发布 |
+
+**摄像头编号说明：**
+- `VideoCapture(0)` - 系统默认摄像头
+- `VideoCapture(1)` - 第二个摄像头
+- `VideoCapture(2)` - 第三个摄像头（通常USB摄像头）
+- 可用 `find_available_cameras()` 自动检测
 
 ### 六、灯光控制程序（Jupyter Notebook版本）
 
@@ -724,6 +958,39 @@ class ImageCapture:
                 self.counter += 1                   # 计数器加1
             time.sleep(0.1)                          # 休眠0.1秒，控制采集速度（约10FPS）
 
+    def capture_with_keypress(self):
+        """
+        按键保存模式：实时预览摄像头，按P键保存图像
+        按ESC键退出
+        """
+        print("=" * 50)
+        print("按键保存模式已启动")
+        print("操作说明:")
+        print("  P - 保存当前帧到本地")
+        print("  ESC - 退出程序")
+        print("=" * 50)
+
+        while True:
+            ret, frame = self.cap.read()  # 读取摄像头帧
+            if not ret:
+                print("无法读取摄像头画面")
+                break
+
+            cv2.imshow("Camera - Press P to Save, ESC to Exit", frame)
+
+            key = cv2.waitKey(1) & 0xFF  # 等待按键，1ms超时
+            if key == ord('p') or key == ord('P'):
+                filename = f"raw_{self.counter:04d}.jpg"
+                filepath = os.path.join(self.save_dir, filename)
+                cv2.imwrite(filepath, frame)
+                print(f"[已保存] {filename} (共{self.counter}张)")
+                self.counter += 1
+            elif key == 27:  # ESC键的ASCII码是27
+                print("退出按键保存模式")
+                break
+
+        cv2.destroyAllWindows()
+
     def capture_from_directory(self, source_dir, num_per_class=50):
         """
         从素材目录复制图像方法（用于没有摄像头时）
@@ -769,12 +1036,15 @@ class ImageCapture:
 if __name__ == '__main__':
     # __name__ == '__main__' 表示直接运行此脚本（而非被导入）
     capture = ImageCapture("captured_images")         # 创建采集器实例
-    
-    # 根据实际情况选择采集方式（注释掉不用的方式）
-    # 方式1：从摄像头采集100张
+
+    # 根据实际情况选择采集方式
+    # 方式1：自动采集指定数量
     # capture.capture_from_camera(100)
-    
-    # 方式2：从素材目录采集（每个类别50张）
+
+    # 方式2：按键保存模式（推荐！）实时预览，按P键保存
+    capture.capture_with_keypress()
+
+    # 方式3：从素材目录采集（每个类别50张）
     # capture.capture_from_directory("素材目录", 50)
     
     capture.release()                                  # 释放资源
