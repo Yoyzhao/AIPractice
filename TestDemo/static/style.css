@@ -1,0 +1,138 @@
+/* 在线刷题系统 - 自定义样式 */
+
+/* 全局样式 */
+:root {
+    --primary-color: #3498db;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --dark-color: #2c3e50;
+    --light-bg: #f5f5f5;
+}
+
+/* 导航栏增强 */
+.navbar-brand {
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* 卡片阴影增强 */
+.card {
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 6px 25px rgba(0,0,0,0.1);
+}
+
+/* 题目选项动画 */
+.option-item {
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.option-item:active {
+    transform: scale(0.98);
+}
+
+/* 进度条动画 */
+.progress-bar {
+    transition: width 0.5s ease;
+}
+
+/* 按钮悬停效果 */
+.btn {
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+/* 加载动画 */
+.spinner-border {
+    animation-duration: 0.8s;
+}
+
+/* 弹窗动画 */
+.modal.fade .modal-dialog {
+    transform: scale(0.9);
+    transition: transform 0.2s ease;
+}
+
+.modal.show .modal-dialog {
+    transform: scale(1);
+}
+
+/* 错题本页面样式 */
+.question-item {
+    transition: background-color 0.2s ease;
+}
+
+.question-item:hover {
+    background-color: #fafafa;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .stats-card {
+        padding: 10px;
+    }
+
+    .stats-number {
+        font-size: 22px;
+    }
+
+    .option-item {
+        padding: 12px 15px;
+    }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+/* 动画关键帧 */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease;
+}
+
+.animate-slide-up {
+    animation: slideUp 0.3s ease;
+}
