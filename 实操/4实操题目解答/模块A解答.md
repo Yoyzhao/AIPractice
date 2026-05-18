@@ -472,13 +472,13 @@ except KeyboardInterrupt:
 
 **新增功能说明：**
 
-| 功能 | 方法 | 说明 |
-|------|------|------|
-| 图像增强 | `preprocess_image()` | CLAHE对比度增强 |
-| 边缘检测 | `detect_edges()` | Canny边缘提取 |
-| 车道线检测 | `detect_lane_lines()` | 霍夫变换+ROI掩码 |
-| 车辆检测 | `detect_vehicles()` | HSV红色特征+轮廓分析 |
-| 实时FPS | `get_display_with_info()` | 帧率计算与显示 |
+| 功能    | 方法                        | 说明           |
+| ----- | ------------------------- | ------------ |
+| 图像增强  | `preprocess_image()`      | CLAHE对比度增强   |
+| 边缘检测  | `detect_edges()`          | Canny边缘提取    |
+| 车道线检测 | `detect_lane_lines()`     | 霍夫变换+ROI掩码   |
+| 车辆检测  | `detect_vehicles()`       | HSV红色特征+轮廓分析 |
+| 实时FPS | `get_display_with_info()` | 帧率计算与显示      |
 
 ### 五-补充：cv2.VideoCapture摄像头测试代码
 
@@ -600,12 +600,13 @@ finally:
 
 **两种摄像头获取方式对比：**
 
-| 方式 | 代码 | 优点 | 缺点 |
-|------|------|------|------|
-| **cv2.VideoCapture** | `cv2.VideoCapture(0)` | 简单直接、无需ROS、可离线使用 | 无法跨设备、需手动管理 |
-| **ROS话题订阅** | `rospy.Subscriber(...)` | 跨进程、设备无关、已封装 | 需ROS环境、依赖话题发布 |
+| 方式                   | 代码                      | 优点               | 缺点            |
+| -------------------- | ----------------------- | ---------------- | ------------- |
+| **cv2.VideoCapture** | `cv2.VideoCapture(0)`   | 简单直接、无需ROS、可离线使用 | 无法跨设备、需手动管理   |
+| **ROS话题订阅**          | `rospy.Subscriber(...)` | 跨进程、设备无关、已封装     | 需ROS环境、依赖话题发布 |
 
 **摄像头编号说明：**
+
 - `VideoCapture(0)` - 系统默认摄像头
 - `VideoCapture(1)` - 第二个摄像头
 - `VideoCapture(2)` - 第三个摄像头（通常USB摄像头）
@@ -1873,8 +1874,31 @@ names: ['person', 'turn_left', 'turn_right', 'limit_20', 'limit_100', 'red_light
 **YOLO训练命令：**
 
 ```bash
-yolo detect train data=data.yaml model=yolov8n.pt epochs=100 imgsz=640
+# YOLO目标检测训练命令详解
+# yolo detect train   - YOLO检测任务 + train模式（训练模式）
+# data=data.yaml      - 数据集配置文件路径，包含数据集路径、类别数、类别名称
+# model=yolo11n.pt    - 预训练模型权重（11n=nano最小/快、11s=small、11m=medium、11l=large、11x=xlarge）
+# epochs=100          - 训练轮数（整个数据集训练100次），轮数越大精度越高但耗时越长
+# imgsz=640           - 输入图像尺寸（640x640），尺寸越大精度越高但推理速度越慢
+yolo detect train data=data.yaml model=yolo11n.pt epochs=100 imgsz=640
 ```
+
+**预训练模型来源：**
+
+- **来源**：Ultralytics官方提供的COCO数据集预训练权重
+- **获取方式**：首次训练时命令会自动下载（需网络连接）
+- **存储位置**：Windows用户通常在 `C:\Users\你的用户名\AppData\Roaming\Ultralytics` 目录下
+- **手动下载**：可访问 <https://github.com/ultralytics/assets/releases> 下载 .pt 文件
+- **离线训练**：将下载的 .pt 文件放在项目目录，训练命令中使用相对路径即可
+
+**参数调优建议：**
+
+| 参数     | 可选值             | 说明   | 调整建议           |
+| ------ | --------------- | ---- | -------------- |
+| model  | yolo11n/s/m/l/x | 模型规模 | 硬件强用l/x，竞赛用s/m |
+| epochs | 50\~300         | 训练轮数 | 小数据集50-100足够   |
+| imgsz  | 320/416/512/640 | 图像尺寸 | 竞赛推荐640        |
+| batch  | 8/16/32         | 批大小  | 显存不足时降低batch   |
 
 ### 九、模型部署与应用
 
@@ -2051,7 +2075,120 @@ if __name__ == '__main__':
    - 报修
 4. 导入文本数据
 
-### 四、文本数据划分程序
+**Label-Studio文本标注导出格式：**
+
+导出格式通常为JSON或CSV，推荐使用**JSON格式**：
+
+```json
+[
+    {
+        "id": 1,
+        "text": "您好，请问产品质保期是多久？",
+        "label": "咨询"
+    },
+    {
+        "id": 2,
+        "text": "产品质量太差，要求退货退款",
+        "label": "投诉"
+    },
+    {
+        "id": 3,
+        "text": "空调不制冷，需要安排维修师傅上门",
+        "label": "报修"
+    }
+]
+```
+
+| 字段    | 说明             |
+| ----- | -------------- |
+| id    | 文本唯一标识         |
+| text  | 原始文本内容         |
+| label | 标注类别（咨询/投诉/报修） |
+
+### 四、Label-Studio导出格式转换
+
+**Label-Studio原始导出JSON包含大量元数据，需要转换为训练可用格式：**
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Label-Studio导出JSON转换为训练格式
+功能：将Label-Studio原始导出格式转换为{id, text, label}格式
+"""
+
+import json
+
+def convert_labelstudio_to_train(input_file, output_file):
+    """
+    转换Label-Studio导出格式
+
+    参数:
+        input_file  - Label-Studio导出的原始JSON文件
+        output_file - 转换后的输出文件
+    """
+    # 读取Label-Studio原始导出文件
+    with open(input_file, 'r', encoding='utf-8') as f:
+        raw_data = json.load(f)
+
+    # 转换后的数据列表
+    converted_data = []
+
+    for item in raw_data:
+        # 从原始数据中提取文本（位于data.text字段）
+        text = item.get('data', {}).get('text', '')
+
+        # 从标注结果中提取标签（位于annotations[0].result[0].value.choices）
+        label = 'unknown'
+        if item.get('annotations'):
+            annotation = item['annotations'][0]
+            if annotation.get('result'):
+                result = annotation['result'][0]
+                if 'choices' in result.get('value', {}):
+                    label = result['value']['choices'][0]
+
+        converted_data.append({
+            'id': item.get('id'),
+            'text': text,
+            'label': label
+        })
+
+    # 保存转换后的数据
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(converted_data, f, ensure_ascii=False, indent=2)
+
+    print(f"转换完成！共{len(converted_data)}条数据")
+    print(f"保存至: {output_file}")
+
+    return converted_data
+
+if __name__ == '__main__':
+    # 示例用法
+    input_file = 'A4/文本数据标注/labelstudio_export.json'  # Label-Studio导出的原始文件
+    output_file = 'A4/文本数据标注/converted.json'         # 转换后的文件
+
+    convert_labelstudio_to_train(input_file, output_file)
+```
+
+**Label-Studio原始字段说明：**
+
+| 原始字段路径 | 说明 |
+|-------------|------|
+| `data.text` | 原始文本内容 |
+| `annotations[0].result[0].value.choices` | 标注标签（数组） |
+| `id` | 任务ID |
+
+**转换前后对比：**
+
+```json
+// 转换前（Label-Studio原始格式）
+{"id":10, "data":{"text":"fix"}, "annotations":[{"result":[{"value":{"choices":["fix"]}}]}]}
+
+// 转换后（训练可用格式）
+{"id":10, "text":"fix", "label":"fix"}
+```
+
+### 五、文本数据划分程序
 
 **Python程序示例（text\_dataset\_split.py）：**
 
