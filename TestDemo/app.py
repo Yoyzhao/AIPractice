@@ -310,6 +310,7 @@ def get_wrongbook():
         questions.append({
             'id': item['id'],
             'question_id': item['question_id'],
+            'original_index': item.get('original_index', 0),
             'type': item['type'],
             'type_name': {'single': '单选题', 'multi': '多选题', 'judge': '判断题'}[item['type']],
             'content': item['content'],

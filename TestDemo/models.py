@@ -36,15 +36,23 @@ class Database:
         try:
             cursor = conn.cursor()
 
+            # 检查并添加 original_index 字段
+            cursor.execute("PRAGMA table_info(questions)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if 'original_index' not in columns:
+                cursor.execute("ALTER TABLE questions ADD COLUMN original_index INTEGER DEFAULT 0")
+
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS questions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    original_index INTEGER DEFAULT 0,
                     type VARCHAR(20) NOT NULL,
                     content TEXT NOT NULL,
                     options TEXT NOT NULL,
                     answer VARCHAR(50) NOT NULL,
                     explanation TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(type, original_index)
                 )
             ''')
 
@@ -114,16 +122,39 @@ class Database:
             cursor = conn.cursor()
             count = 0
             for q in questions:
-                cursor.execute('''
-                    INSERT INTO questions (type, content, options, answer, explanation)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (
-                    q['type'],
-                    q['content'],
-                    json.dumps(q['options'], ensure_ascii=False),
-                    q['answer'],
-                    q.get('explanation', '')
-                ))
+                # 根据 type 和 original_index 确定唯一性
+                original_index = q.get('original_index', 0)
+                q_type = q['type']
+                
+                cursor.execute('SELECT id FROM questions WHERE type = ? AND original_index = ?', (q_type, original_index))
+                row = cursor.fetchone()
+                
+                if row:
+                    # 如果已存在，则更新
+                    cursor.execute('''
+                        UPDATE questions 
+                        SET content = ?, options = ?, answer = ?, explanation = ?
+                        WHERE id = ?
+                    ''', (
+                        q['content'],
+                        json.dumps(q['options'], ensure_ascii=False),
+                        q['answer'],
+                        q.get('explanation', ''),
+                        row['id']
+                    ))
+                else:
+                    # 否则插入新题目
+                    cursor.execute('''
+                        INSERT INTO questions (type, original_index, content, options, answer, explanation)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (
+                        q_type,
+                        original_index,
+                        q['content'],
+                        json.dumps(q['options'], ensure_ascii=False),
+                        q['answer'],
+                        q.get('explanation', '')
+                    ))
                 count += 1
             conn.commit()
             return count
@@ -351,7 +382,7 @@ class Database:
             # 将 q.id 命名为 id，确保前端拿到的 ID 始终是题目表的 ID
             cursor.execute('''
                 SELECT q.id, w.question_id, w.user_answer, w.wrong_count, w.last_reviewed,
-                       q.content, q.type, q.options, q.answer as correct_answer, q.explanation
+                       q.content, q.type, q.options, q.answer as correct_answer, q.explanation, q.original_index
                 FROM wrong_questions w
                 JOIN questions q ON w.question_id = q.id
                 ORDER BY w.last_reviewed DESC

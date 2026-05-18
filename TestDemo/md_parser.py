@@ -124,6 +124,7 @@ class MDParser:
             return None
 
         return {
+            'original_index': int(question_num),
             'type': q_type,
             'content': q_content,
             'options': options,
