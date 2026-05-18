@@ -92,11 +92,19 @@ def process_file():
                 unique_stem_lines.append(sl_clean)
         q_stem = '\n'.join(unique_stem_lines)
 
-        ans_match = re.search(r'[（\(]\s*([A-F对错√×TF]+)\s*[）\)]\s*[。.]*\s*$', q_stem)
-        if ans_match:
+        # 修复跨行答案匹配（如答案在第一行末尾，但没有匹配到）
+        ans_match = re.search(r'[（\(]\s*([A-F对错√×TF]+)\s*[）\)]\s*[。.]*\s*(?:实现|包括|属于|是指|是)?\s*$', q_stem)
+        if not ans_match:
+            # 尝试在题干任意位置寻找嵌入的答案（兼容包含多余字符的情况）
+            ans_match = re.search(r'[（\(]\s*([A-F对错√×TF]+)\s*[）\)]', q_stem)
+            if ans_match:
+                q_answer = ans_match.group(1)
+                clean_stem = re.sub(r'[（\(]\s*([A-F对错√×TF]+)\s*[）\)]', r'（）', q_stem).strip()
+        
+        if ans_match and not q_answer:
             q_answer = ans_match.group(1)
             clean_stem = re.sub(r'[（\(]\s*[A-F对错√×TF]+\s*[）\)]\s*([。.]*)\s*$', r'（）\1', q_stem).strip()
-        else:
+        elif not q_answer:
             clean_stem = q_stem.strip()
             
         clean_opts = q_options.strip()
