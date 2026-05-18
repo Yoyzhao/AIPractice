@@ -4,123 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>在线刷题系统</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f5f5f5;
-            min-height: 100vh;
-        }
-        .navbar {
-            background-color: #2c3e50 !important;
-        }
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        }
-        .question-card {
-            min-height: 400px;
-        }
-        .question-type {
-            font-size: 14px;
-            color: #6c757d;
-        }
-        .option-item {
-            padding: 15px 20px;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .option-item:hover {
-            border-color: #3498db;
-            background-color: #f8f9fa;
-        }
-        .option-item.selected {
-            border-color: #3498db;
-            background-color: #e8f4fd;
-        }
-        .option-item.correct {
-            border-color: #28a745;
-            background-color: #d4edda;
-        }
-        .option-item.wrong {
-            border-color: #dc3545;
-            background-color: #f8d7da;
-        }
-        .btn-submit {
-            background-color: #3498db;
-            border: none;
-            padding: 12px 40px;
-            font-size: 16px;
-        }
-        .btn-submit:hover {
-            background-color: #2980b9;
-        }
-        .btn-submit:disabled {
-            background-color: #95a5a6;
-        }
-        .stats-card {
-            text-align: center;
-            padding: 20px;
-        }
-        .stats-number {
-            font-size: 28px;
-            font-weight: bold;
-            color: #2c3e50;
-        }
-        .stats-label {
-            color: #6c757d;
-            font-size: 14px;
-        }
-        .progress-custom {
-            height: 8px;
-            border-radius: 4px;
-        }
-        .modal-explanation {
-            text-align: left;
-        }
-        .explanation-text {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 10px;
-        }
-        .type-badge {
-            font-size: 12px;
-            padding: 4px 10px;
-        }
-        .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 300px;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #6c757d;
-        }
-        .empty-state i {
-            font-size: 64px;
-            margin-bottom: 20px;
-        }
-    </style>
+    <!-- 本地核心 CSS -->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/bootstrap-icons.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+    <!-- 本地核心 JS -->
+    <script src="/static/js/jquery.min.js"></script>
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
     <!-- 导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
+    <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand" href="/">
-                <i class="bi bi-journal-bookmark-fill me-2"></i>在线刷题系统
+                <i class="bi bi-rocket-takeoff-fill me-2"></i>
+                <span>在线刷题系统</span>
             </a>
-            <div class="d-flex">
-                <a href="/wrongbook" class="btn btn-outline-light btn-sm me-2">
+            <div class="d-flex align-items-center">
+                <div class="dropdown me-2">
+                    <button class="btn btn-light btn-sm dropdown-toggle" type="button" id="typeSelectBtn" data-bs-toggle="dropdown">
+                        <i class="bi bi-funnel me-1"></i>全部题型
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                        <li><a class="dropdown-item active" href="#" onclick="selectPracticeType('all', '全部题型')">全部题型</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="selectPracticeType('single', '仅单选题')">仅单选题</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="selectPracticeType('multi', '仅多选题')">仅多选题</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="selectPracticeType('judge', '仅判断题')">仅判断题</a></li>
+                    </ul>
+                </div>
+                <a href="/wrongbook" class="btn btn-light btn-sm me-2">
                     <i class="bi bi-exclamation-circle me-1"></i>错题本
                 </a>
-                <button class="btn btn-outline-light btn-sm" onclick="showStats()">
+                <button class="btn btn-light btn-sm" onclick="showStats()">
                     <i class="bi bi-bar-chart me-1"></i>统计
                 </button>
             </div>
@@ -128,14 +44,13 @@
     </nav>
 
     <!-- 主内容 -->
-    <div class="container mt-4">
-        <div class="row">
+    <div class="container mt-4 pb-5">
+        <div class="row g-4">
             <!-- 左侧：题目卡片 -->
             <div class="col-lg-8">
                 <div class="card question-card" id="questionCard">
-                    <!-- 题目内容区 -->
-                    <div class="card-body" id="questionArea">
-                        <div class="loading">
+                    <div class="card-body p-0" id="questionArea">
+                        <div class="loading d-flex justify-content-center align-items-center" style="min-height: 400px;">
                             <div class="spinner-border text-primary" role="status">
                                 <span class="visually-hidden">加载中...</span>
                             </div>
@@ -144,106 +59,123 @@
                 </div>
             </div>
 
-            <!-- 右侧：统计卡片 -->
+            <!-- 右侧：侧边栏 -->
             <div class="col-lg-4">
                 <!-- 进度卡片 -->
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h6 class="card-title text-muted mb-3">
-                            <i class="bi bi-graph-up me-1"></i>刷题进度
-                        </h6>
-                        <div class="progress progress-custom mb-2">
-                            <div class="progress-bar bg-primary" id="progressBar" style="width: 0%"></div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-activity me-2 text-primary"></i>刷题进度
+                            </h6>
+                            <span class="badge bg-light text-primary" id="progressPercent">0%</span>
                         </div>
-                        <small class="text-muted">
-                            已完成 <span id="answeredCount">0</span> / <span id="totalCount">0</span> 题
-                        </small>
+                        <div class="progress mb-2">
+                            <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <small class="text-muted">已完成 <span id="answeredCount" class="fw-bold text-dark">0</span> 题</small>
+                            <small class="text-muted">目标 <span id="totalCount" class="fw-bold text-dark">0</span> 题</small>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 统计卡片 -->
-                <div class="card mb-3">
+                <!-- 核心统计 -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6">
+                        <div class="card text-center py-3">
+                            <div class="stats-number text-success" id="correctRate">0%</div>
+                            <div class="stats-label">正确率</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card text-center py-3">
+                            <div class="stats-number text-danger" id="wrongCount">0</div>
+                            <div class="stats-label">错题数</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 题型明细 -->
+                <div class="card mb-4">
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-6 stats-card">
-                                <div class="stats-number" id="correctRate">0%</div>
-                                <div class="stats-label">正确率</div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-layers me-2 text-primary"></i>题型分布
+                            </h6>
+                            <small class="text-muted">总库: <span id="dbTotalCount">0</span></small>
+                        </div>
+                        <div class="type-stats-item mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="small fw-medium">单选题</span>
+                                <span class="small text-muted"><span id="singleCount">0 / 0</span> <span class="ms-1 opacity-50">(库: <span id="dbSingleCount">0</span>)</span></span>
                             </div>
-                            <div class="col-6 stats-card">
-                                <div class="stats-number" id="wrongCount">0</div>
-                                <div class="stats-label">错题数</div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-primary" id="singleProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="type-stats-item mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="small fw-medium">多选题</span>
+                                <span class="small text-muted"><span id="multiCount">0 / 0</span> <span class="ms-1 opacity-50">(库: <span id="dbMultiCount">0</span>)</span></span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-success" id="multiProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="type-stats-item">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="small fw-medium">判断题</span>
+                                <span class="small text-muted"><span id="judgeCount">0 / 0</span> <span class="ms-1 opacity-50">(库: <span id="dbJudgeCount">0</span>)</span></span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-info" id="judgeProgress" style="width: 0%"></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 题型分布 -->
-                <div class="card">
+                <!-- 管理操作 -->
+                <div class="card border-dashed">
                     <div class="card-body">
-                        <h6 class="card-title text-muted mb-3">
-                            <i class="bi bi-pie-chart me-1"></i>题型分布
-                        </h6>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>单选题</span>
-                            <span id="singleCount">0 / 120</span>
+                        <h6 class="card-title mb-3 small text-muted text-uppercase">管理操作</h6>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="resetProgress()">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>重置进度
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="triggerImport()">
+                                <i class="bi bi-cloud-arrow-up me-1"></i>导入题目
+                            </button>
+                            <input type="file" id="fileInput" multiple accept=".md" style="display: none;" onchange="handleFileSelect(event)">
+                            <button class="btn btn-link text-danger btn-sm mt-2" onclick="clearDatabase()">
+                                <i class="bi bi-trash me-1"></i>清空数据
+                            </button>
                         </div>
-                        <div class="progress progress-custom mb-3">
-                            <div class="progress-bar bg-primary" id="singleProgress" style="width: 0%"></div>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>多选题</span>
-                            <span id="multiCount">0 / 10</span>
-                        </div>
-                        <div class="progress progress-custom mb-3">
-                            <div class="progress-bar bg-success" id="multiProgress" style="width: 0%"></div>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>判断题</span>
-                            <span id="judgeCount">0 / 30</span>
-                        </div>
-                        <div class="progress progress-custom">
-                            <div class="progress-bar bg-info" id="judgeProgress" style="width: 0%"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 操作按钮 -->
-                <div class="card mt-3">
-                    <div class="card-body">
-                        <button class="btn btn-outline-danger w-100 mb-2" onclick="clearDatabase()">
-                            <i class="bi bi-trash me-1"></i>清空题库
-                        </button>
-                        <button class="btn btn-outline-secondary w-100 mb-2" onclick="resetProgress()">
-                            <i class="bi bi-arrow-counterclockwise me-1"></i>重置进度
-                        </button>
-                        <button class="btn btn-outline-warning w-100" onclick="importQuestions()">
-                            <i class="bi bi-cloud-arrow-up me-1"></i>刷新题库
-                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 答案提示弹窗 -->
+    <!-- 结果弹窗 -->
     <div class="modal fade" id="resultModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header border-0">
                     <h5 class="modal-title" id="resultTitle">
-                        <i class="bi bi-check-circle text-success me-2"></i>回答正确
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>回答正确
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body modal-explanation">
-                    <div id="resultMessage"></div>
-                    <div class="explanation-text mt-3" id="explanationArea" style="display:none;">
-                        <h6><i class="bi bi-lightbulb me-1"></i>解析</h6>
-                        <p id="explanationText" class="mb-0"></p>
+                <div class="modal-body pt-0">
+                    <div id="resultMessage" class="mb-3"></div>
+                    <div class="explanation-text" id="explanationArea" style="display:none;">
+                        <h6 class="small fw-bold text-uppercase text-muted mb-2">题目解析</h6>
+                        <p id="explanationText" class="mb-0 small"></p>
                     </div>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-primary" onclick="nextQuestion()">
+                    <button type="button" class="btn btn-primary w-100" onclick="nextQuestion()">
                         下一题 <i class="bi bi-arrow-right ms-1"></i>
                     </button>
                 </div>
@@ -255,75 +187,83 @@
     <div class="modal fade" id="statsModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header">
+                <div class="modal-header border-0">
                     <h5 class="modal-title">
-                        <i class="bi bi-bar-chart me-2"></i>刷题统计
+                        <i class="bi bi-bar-chart-fill me-2 text-primary"></i>刷题概览
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="row text-center">
+                    <div class="row g-3 text-center">
                         <div class="col-4">
-                            <div class="stats-number text-primary" id="modalTotal">0</div>
-                            <div class="stats-label">总题库</div>
+                            <div class="stats-number small" id="modalTotal">0</div>
+                            <div class="stats-label">题库总量</div>
                         </div>
                         <div class="col-4">
-                            <div class="stats-number text-success" id="modalCorrect">0</div>
-                            <div class="stats-label">正确数</div>
+                            <div class="stats-number small text-success" id="modalCorrect">0</div>
+                            <div class="stats-label">累计正确</div>
                         </div>
                         <div class="col-4">
-                            <div class="stats-number text-danger" id="modalWrong">0</div>
-                            <div class="stats-label">错题数</div>
+                            <div class="stats-number small text-danger" id="modalWrong">0</div>
+                            <div class="stats-label">累计错题</div>
                         </div>
                     </div>
-                    <hr>
-                    <div class="text-center">
-                        <div class="stats-number" id="modalAccuracy">0%</div>
-                        <div class="stats-label">正确率</div>
+                    <div class="mt-4 p-4 bg-light rounded-pill text-center">
+                        <div class="h3 mb-0 fw-bold" id="modalAccuracy">0%</div>
+                        <div class="stats-label">综合正确率</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentQuestion = null;
         let selectedAnswer = null;
         let resultModal = null;
         let statsModal = null;
+        let currentPracticeType = 'all';
 
         document.addEventListener('DOMContentLoaded', function() {
             resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
             statsModal = new bootstrap.Modal(document.getElementById('statsModal'));
+            
+            // 检查 URL 参数初始化题型
+            const urlParams = new URLSearchParams(window.location.search);
+            const type = urlParams.get('type');
+            if (type && ['single', 'multi', 'judge'].includes(type)) {
+                const typeNames = {single: '仅单选题', multi: '仅多选题', judge: '仅判断题'};
+                selectPracticeType(type, typeNames[type], false);
+            }
+
+            // 修复关闭弹窗不跳转下一题的问题
+            document.getElementById('resultModal').addEventListener('hidden.bs.modal', function () {
+                if (document.getElementById('resultTitle').innerHTML.includes('回答错误')) {
+                    loadNextQuestion();
+                }
+            });
+
             initApp();
         });
 
         async function initApp() {
             showLoading();
-
-            // 检查是否已导入题库
             const checkRes = await fetch('/api/import/check');
             const checkData = await checkRes.json();
 
             if (!checkData.imported) {
-                showEmpty('题库未导入，请点击右上角"导入题库"按钮');
+                showEmpty('题库未导入，请点击侧边栏"刷新题库"按钮');
                 return;
             }
 
-            // 初始化会话
             await fetch('/api/init', { method: 'POST' });
-
-            // 获取统计数据
             await updateStats();
-
-            // 获取第一题
             await loadNextQuestion();
         }
 
         function showLoading() {
             document.getElementById('questionArea').innerHTML = `
-                <div class="loading">
+                <div class="loading d-flex justify-content-center align-items-center" style="min-height: 400px;">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">加载中...</span>
                     </div>
@@ -333,17 +273,24 @@
 
         function showEmpty(message) {
             document.getElementById('questionArea').innerHTML = `
-                <div class="empty-state">
-                    <i class="bi bi-inbox"></i>
-                    <h5>${message}</h5>
+                <div class="empty-state p-5 text-center">
+                    <i class="bi bi-inbox text-muted display-1"></i>
+                    <h5 class="mt-3 text-muted">${message}</h5>
                 </div>
             `;
         }
 
         async function loadNextQuestion() {
             showLoading();
-
-            const res = await fetch('/api/question/next');
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const wrongOnly = urlParams.get('wrong_only') === 'true';
+            
+            let url = `/api/question/next?`;
+            if (wrongOnly) url += 'wrong_only=true&';
+            if (currentPracticeType !== 'all') url += `type=${currentPracticeType}`;
+            
+            const res = await fetch(url);
             const data = await res.json();
 
             if (!data.success) {
@@ -353,59 +300,74 @@
 
             currentQuestion = data.question;
             selectedAnswer = null;
-
             renderQuestion(currentQuestion);
             await updateStats();
         }
 
+        function selectPracticeType(type, label, reload = true) {
+            currentPracticeType = type;
+            document.getElementById('typeSelectBtn').innerHTML = `<i class="bi bi-funnel me-1"></i>${label}`;
+            
+            // 更新下拉菜单激活状态
+            document.querySelectorAll('.dropdown-item').forEach(el => {
+                if (el.textContent === label) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+
+            if (reload) {
+                // 如果是“全部题型”，重置 Session 以便重新开始混合练习
+                if (type === 'all') {
+                    fetch('/api/init', { method: 'POST' }).then(() => loadNextQuestion());
+                } else {
+                    loadNextQuestion();
+                }
+            }
+        }
+
         function renderQuestion(question) {
-            const optionsHtml = Object.entries(question.options).map(([key, value]) => `
-                <div class="option-item" data-option="${key}" onclick="selectOption('${key}')">
-                    <strong>${key}.</strong> ${value}
+            const options = question.options || {};
+            const optionsHtml = Object.entries(options).map(([key, value]) => `
+                <div class="option-item animate-in" data-option="${key}" onclick="selectOption('${key}')">
+                    <strong>${key}</strong>
+                    <span>${value}</span>
                 </div>
             `).join('');
 
             document.getElementById('questionArea').innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="badge bg-secondary type-badge">${question.type_name}</span>
-                </div>
-                <h5 class="mb-4">${question.content}</h5>
-                <div class="options-container">
-                    ${optionsHtml}
-                </div>
-                <div class="mt-4 text-center">
-                    <button class="btn btn-submit btn-primary" onclick="submitAnswer()" id="submitBtn" disabled>
-                        确认答案
-                    </button>
+                <div class="p-4 animate-in">
+                    <div class="mb-4">
+                        <span class="question-type-badge mb-3 d-inline-block">${question.type_name}</span>
+                        <div class="question-content">${question.content}</div>
+                    </div>
+                    <div class="options-container">
+                        ${optionsHtml || '<div class="alert alert-warning">此题目暂无备选答案，请检查题库格式。</div>'}
+                    </div>
+                    <div class="mt-5 text-center">
+                        <button class="btn btn-submit btn-primary" onclick="submitAnswer()" id="submitBtn" disabled>
+                            确认提交
+                        </button>
+                    </div>
                 </div>
             `;
         }
 
         function selectOption(option) {
-            // 移除之前的选中状态
-            document.querySelectorAll('.option-item').forEach(el => {
-                el.classList.remove('selected');
-            });
-
-            // 选中新选项
-            const optionEl = document.querySelector(`[data-option="${option}"]`);
-            if (optionEl) {
-                optionEl.classList.add('selected');
+            if (currentQuestion.type === 'multi') {
+                const el = document.querySelector(`[data-option="${option}"]`);
+                el.classList.toggle('selected');
+                
+                const selected = [];
+                document.querySelectorAll('.option-item.selected').forEach(el => {
+                    selected.push(el.dataset.option);
+                });
+                selectedAnswer = selected.sort().join('');
+            } else {
+                document.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected'));
+                document.querySelector(`[data-option="${option}"]`).classList.add('selected');
                 selectedAnswer = option;
-
-                // 多选题支持多选
-                if (currentQuestion.type === 'multi') {
-                    optionEl.classList.toggle('selected');
-                    // 收集所有选中的选项
-                    const selected = [];
-                    document.querySelectorAll('.option-item.selected').forEach(el => {
-                        selected.push(el.dataset.option);
-                    });
-                    selectedAnswer = selected.sort().join('');
-                }
             }
 
-            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').disabled = !selectedAnswer;
         }
 
         async function submitAnswer() {
@@ -427,15 +389,21 @@
                 await loadNextQuestion();
             } else {
                 document.getElementById('resultTitle').innerHTML =
-                    '<i class="bi bi-x-circle text-danger me-2"></i>回答错误';
+                    '<i class="bi bi-x-circle-fill text-danger me-2"></i>回答错误';
+                
+                // 优先使用接口返回的正确答案，兜底使用当前题目对象的答案
+                const correctAnswer = data.correct_answer || currentQuestion.answer || '未知';
+                const explanation = data.explanation || currentQuestion.explanation || '暂无解析';
+
                 document.getElementById('resultMessage').innerHTML = `
-                    <p class="text-danger">正确答案是：<strong>${data.correct_answer}</strong></p>
-                    <p>你的答案是：<strong>${data.user_answer}</strong></p>
+                    <div class="alert alert-danger border-0 bg-danger bg-opacity-10">
+                        <div class="small mb-1">正确答案</div>
+                        <div class="h5 fw-bold mb-0">${correctAnswer}</div>
+                    </div>
+                    <div class="text-muted small">你的答案：${selectedAnswer || '未选择'}</div>
                 `;
-                document.getElementById('explanationText').textContent =
-                    data.explanation || '暂无解析';
+                document.getElementById('explanationText').textContent = explanation;
                 document.getElementById('explanationArea').style.display = 'block';
-                document.getElementById('resultModal').querySelector('.btn-primary').disabled = false;
                 resultModal.show();
                 updateStats();
             }
@@ -449,12 +417,12 @@
 
         function showComplete() {
             document.getElementById('questionArea').innerHTML = `
-                <div class="empty-state">
-                    <i class="bi bi-trophy text-warning"></i>
-                    <h5>恭喜！题目已全部完成！</h5>
-                    <p class="text-muted">你已经完成了所有题目的练习</p>
-                    <button class="btn btn-primary mt-3" onclick="resetProgress()">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>重新开始
+                <div class="empty-state p-5 text-center animate-in">
+                    <i class="bi bi-trophy text-warning display-1"></i>
+                    <h3 class="mt-4 fw-bold">圆满完成！</h3>
+                    <p class="text-muted mb-4">恭喜，您已完成了当前阶段的所有题目练习</p>
+                    <button class="btn btn-primary px-5" onclick="resetProgress()">
+                        <i class="bi bi-arrow-counterclockwise me-2"></i>重新开始一轮
                     </button>
                 </div>
             `;
@@ -470,80 +438,132 @@
                 const actual = data.actual_counts;
                 const progress = data.session_progress;
 
-                // 更新总进度
+                // 更新 Session 进度
                 document.getElementById('answeredCount').textContent = progress.answered;
                 document.getElementById('totalCount').textContent = targets.total || 0;
 
                 const progressPercent = targets.total > 0
-                    ? (progress.answered / targets.total * 100).toFixed(1)
+                    ? Math.min((progress.answered / targets.total * 100), 100).toFixed(0)
                     : 0;
                 document.getElementById('progressBar').style.width = progressPercent + '%';
+                document.getElementById('progressPercent').textContent = progressPercent + '%';
 
-                // 更新正确率
+                // 更新总库统计
+                document.getElementById('dbTotalCount').textContent = actual.total;
+                document.getElementById('dbSingleCount').textContent = actual.single;
+                document.getElementById('dbMultiCount').textContent = actual.multi;
+                document.getElementById('dbJudgeCount').textContent = actual.judge;
+
                 document.getElementById('correctRate').textContent = stats.accuracy + '%';
                 document.getElementById('wrongCount').textContent = stats.wrong_count;
 
-                // 更新题型分布（显示实际题目数量）
-                document.getElementById('singleCount').textContent =
-                    `${actual.single} 道`;
-                document.getElementById('singleProgress').style.width = '100%';
+                const updateTypeProgress = (type, current, target) => {
+                    const countEl = document.getElementById(`${type}Count`);
+                    const progressEl = document.getElementById(`${type}Progress`);
+                    if (countEl && progressEl) {
+                        countEl.textContent = `${current} / ${target}`;
+                        const percent = target > 0 ? Math.min((current / target * 100), 100) : 0;
+                        progressEl.style.width = `${percent}%`;
+                    }
+                };
 
-                document.getElementById('multiCount').textContent =
-                    `${actual.multi} 道`;
-                document.getElementById('multiProgress').style.width = '100%';
-
-                document.getElementById('judgeCount').textContent =
-                    `${actual.judge} 道`;
-                document.getElementById('judgeProgress').style.width = '100%';
+                updateTypeProgress('single', progress.by_type.single, targets.single);
+                updateTypeProgress('multi', progress.by_type.multi, targets.multi);
+                updateTypeProgress('judge', progress.by_type.judge, targets.judge);
             }
         }
 
         async function resetProgress() {
             if (!confirm('确定要重置刷题进度吗？')) return;
-
             await fetch('/api/reset', { method: 'POST' });
             await loadNextQuestion();
         }
 
+        let isClearing = false;
         async function clearDatabase() {
-            if (!confirm('确定要清空题库吗？所有题目、进度和错题记录都将被删除！')) return;
-
-            const btn = event.target;
+            if (isClearing || !confirm('确定要清空题库吗？所有题目、进度和记录都将被删除！')) return;
+            
+            isClearing = true;
+            const btn = document.querySelector('button[onclick="clearDatabase()"]');
+            const originalHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>清空中...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在清空...';
 
-            const res = await fetch('/api/clear', { method: 'POST' });
-            const data = await res.json();
-
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-trash me-1"></i>清空题库';
-
-            if (data.success) {
-                alert('已清空所有数据！');
-                location.reload();
-            } else {
-                alert('清空失败：' + data.message);
+            try {
+                const res = await fetch('/api/clear', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                        // 清除当前 URL 的参数并跳转，确保回到干净的初始状态
+                        window.location.replace(window.location.pathname);
+                    } else {
+                        alert('清空失败: ' + data.message);
+                        isClearing = false;
+                        btn.disabled = false;
+                        btn.innerHTML = originalHtml;
+                    }
+                } else {
+                    alert('服务器请求失败，请稍后重试');
+                    isClearing = false;
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            } catch (e) {
+                console.error('Clear database error:', e);
+                alert('操作异常，请检查网络连接');
+                isClearing = false;
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
             }
         }
 
-        async function importQuestions() {
-            if (!confirm('将重新导入理论目录中的题库，现有数据将被覆盖，是否继续？')) return;
+        function triggerImport() {
+            document.getElementById('fileInput').click();
+        }
 
-            const btn = event.target;
+        async function handleFileSelect(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            if (!confirm(`确定要导入选中的 ${files.length} 个文件吗？题目将添加到现有题库中。`)) {
+                event.target.value = '';
+                return;
+            }
+
+            const btn = document.querySelector('button[onclick="triggerImport()"]');
+            const originalHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>导入中...';
 
-            const res = await fetch('/api/import', { method: 'POST' });
-            const data = await res.json();
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
 
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-cloud-arrow-up me-1"></i>刷新题库';
-
-            if (data.success) {
-                alert(`导入成功！共 ${data.statistics.total} 道题目\n单选题: ${data.statistics.single} | 多选题: ${data.statistics.multi} | 判断题: ${data.statistics.judge}`);
-                location.reload();
-            } else {
-                alert('导入失败：' + data.message);
+            try {
+                const res = await fetch('/api/import', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('导入失败: ' + data.message);
+                }
+            } catch (e) {
+                console.error('Import error:', e);
+                alert('导入过程中发生错误，请重试');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                event.target.value = '';
             }
         }
 

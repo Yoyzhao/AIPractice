@@ -4,108 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>错题本 - 在线刷题系统</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f5f5f5;
-            min-height: 100vh;
-        }
-        .navbar {
-            background-color: #2c3e50 !important;
-        }
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        }
-        .card-header {
-            background-color: #fff;
-            border-bottom: 1px solid #eee;
-        }
-        .question-item {
-            padding: 20px;
-            border-bottom: 1px solid #eee;
-        }
-        .question-item:last-child {
-            border-bottom: none;
-        }
-        .question-content {
-            font-size: 15px;
-            line-height: 1.6;
-        }
-        .answer-section {
-            margin-top: 15px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        }
-        .your-answer {
-            color: #dc3545;
-        }
-        .correct-answer {
-            color: #28a745;
-        }
-        .explanation-box {
-            margin-top: 15px;
-            padding: 15px;
-            background-color: #fff3cd;
-            border-radius: 8px;
-            border-left: 4px solid #ffc107;
-        }
-        .btn-retry {
-            background-color: #3498db;
-            border: none;
-        }
-        .btn-retry:hover {
-            background-color: #2980b9;
-        }
-        .btn-remove {
-            background-color: #28a745;
-            border: none;
-        }
-        .btn-remove:hover {
-            background-color: #218838;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-        }
-        .empty-state i {
-            font-size: 80px;
-            color: #dee2e6;
-            margin-bottom: 20px;
-        }
-        .stats-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        .wrong-count-badge {
-            background-color: #dc3545;
-            color: white;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 14px;
-        }
-    </style>
+    <!-- 本地核心 CSS -->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/bootstrap-icons.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+    <!-- 本地核心 JS -->
+    <script src="/static/js/jquery.min.js"></script>
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
     <!-- 导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
+    <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand" href="/">
-                <i class="bi bi-journal-bookmark-fill me-2"></i>错题本
+                <i class="bi bi-journal-bookmark-fill me-2"></i>
+                <span>错题本</span>
             </a>
             <div class="d-flex">
-                <a href="/" class="btn btn-outline-light btn-sm me-2">
+                <a href="/" class="btn btn-light btn-sm me-2">
                     <i class="bi bi-arrow-left me-1"></i>返回刷题
                 </a>
-                <button class="btn btn-outline-light btn-sm" onclick="cleanWrongbook()">
+                <button class="btn btn-light btn-sm text-danger" onclick="cleanWrongbook()">
                     <i class="bi bi-trash me-1"></i>清空错题
                 </button>
             </div>
@@ -113,29 +32,34 @@
     </nav>
 
     <!-- 主内容 -->
-    <div class="container mt-4">
+    <div class="container mt-4 pb-5">
         <!-- 统计栏 -->
-        <div class="stats-bar">
-            <div>
-                <span class="text-muted">错题总数：</span>
-                <span class="wrong-count-badge" id="wrongCountBadge">0</span>
-            </div>
-            <div>
-                <button class="btn btn-primary btn-sm" onclick="practiceAll()">
-                    <i class="bi bi-play me-1"></i>全部重练
+        <div class="card mb-4 border-0 shadow-sm" style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); color: white;">
+            <div class="card-body d-flex justify-content-between align-items-center py-4 px-4">
+                <div>
+                    <h4 class="mb-1 fw-bold">我的错题库</h4>
+                    <p class="mb-0 opacity-75">共收录了 <span id="wrongCountBadge" class="fw-bold">0</span> 道需要攻克的题目</p>
+                </div>
+                <button class="btn btn-white bg-white text-primary fw-bold px-4" onclick="practiceAll()">
+                    <i class="bi bi-play-fill me-1"></i>开始专项练习
                 </button>
             </div>
         </div>
 
         <!-- 错题列表 -->
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="bi bi-exclamation-circle text-danger me-2"></i>错题列表
+        <div class="card border-0">
+            <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">
+                    <i class="bi bi-list-stars text-primary me-2"></i>错题列表
                 </h5>
             </div>
             <div class="card-body p-0" id="wrongbookList">
                 <!-- 动态加载 -->
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -143,21 +67,21 @@
     <!-- 答题弹窗 -->
     <div class="modal fade" id="practiceModal" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <span id="practiceType" class="badge bg-secondary me-2">单选题</span>
-                        错题重练
+            <div class="modal-content border-0">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold">
+                        <span id="practiceType" class="question-type-badge me-2">单选题</span>
+                        错题强化练习
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="practiceQuestion"></div>
+                    <div id="practiceQuestion" class="animate-in"></div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                    <button type="button" class="btn btn-primary" onclick="submitPracticeAnswer()">
-                        提交答案
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">暂不练习</button>
+                    <button type="button" class="btn btn-primary px-4" onclick="submitPracticeAnswer()">
+                        提交回答
                     </button>
                 </div>
             </div>
@@ -167,33 +91,30 @@
     <!-- 结果弹窗 -->
     <div class="modal fade" id="resultModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
+            <div class="modal-content border-0">
                 <div class="modal-header border-0">
-                    <h5 class="modal-title" id="resultTitle">
-                        <i class="bi bi-check-circle text-success me-2"></i>回答正确
+                    <h5 class="modal-title fw-bold" id="resultTitle">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>回答正确
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div id="resultMessage"></div>
-                    <div class="explanation-box mt-3" id="explanationArea" style="display:none;">
-                        <h6><i class="bi bi-lightbulb me-1"></i>解析</h6>
-                        <p id="explanationText" class="mb-0"></p>
+                <div class="modal-body pt-0">
+                    <div id="resultMessage" class="mb-3"></div>
+                    <div class="explanation-text" id="explanationArea" style="display:none;">
+                        <h6 class="small fw-bold text-uppercase text-muted mb-2">解析详情</h6>
+                        <p id="explanationText" class="mb-0 small"></p>
                     </div>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                        返回错题本
-                    </button>
-                    <button type="button" class="btn btn-primary" onclick="continuePractice()">
-                        继续练习 <i class="bi bi-arrow-right ms-1"></i>
+                    <button type="button" class="btn btn-light w-100 mb-2" data-bs-dismiss="modal">返回错题本</button>
+                    <button type="button" class="btn btn-primary w-100" onclick="continuePractice()">
+                        练习下一题 <i class="bi bi-arrow-right ms-1"></i>
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let wrongbook = [];
         let currentPractice = null;
@@ -230,32 +151,48 @@
             }
 
             const itemsHtml = wrongbook.map((item, index) => `
-                <div class="question-item">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1">
-                            <span class="badge bg-secondary me-2">${item.type_name}</span>
-                            <span class="text-muted small">错误次数：${item.wrong_count}</span>
+                <div class="question-item animate-in">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <span class="question-type-badge me-2">${item.type_name}</span>
+                            <span class="small text-muted">已错 ${item.wrong_count} 次</span>
+                        </div>
+                        <button class="btn btn-outline-success btn-sm rounded-pill px-3" onclick="removeQuestion(${item.question_id})">
+                            <i class="bi bi-check2-circle me-1"></i>标记为已掌握
+                        </button>
+                    </div>
+                    <div class="question-content h6 fw-bold mb-3">
+                        ${index + 1}. ${item.content}
+                    </div>
+                    
+                    <!-- 新增：显示题目选项 -->
+                    <div class="options-display mb-3">
+                        <div class="row g-2">
+                            ${item.options ? Object.entries(item.options).map(([key, val]) => `
+                                <div class="col-md-6">
+                                    <div class="p-2 border rounded-3 small ${item.correct_answer === key ? 'bg-success bg-opacity-10 border-success' : 'bg-light'}">
+                                        <strong class="me-2 text-primary">${key}</strong> ${val}
+                                    </div>
+                                </div>
+                            `).join('') : '<div class="col-12 text-muted small">该题暂无备选答案</div>'}
                         </div>
                     </div>
-                    <div class="question-content mt-2">
-                        <strong>${index + 1}.</strong> ${item.content}
-                    </div>
-                    <div class="answer-section">
-                        <div><span class="your-answer">你的答案：${item.user_answer}</span></div>
-                        <div><span class="correct-answer">正确答案：${item.correct_answer}</span></div>
+
+                    <div class="answer-section mb-3">
+                        <div class="d-flex gap-4">
+                            <div><span class="small text-muted">上次回答：</span><span class="your-answer">${item.user_answer}</span></div>
+                            <div><span class="small text-muted">正确答案：</span><span class="correct-answer">${item.correct_answer}</span></div>
+                        </div>
                     </div>
                     ${item.explanation ? `
-                        <div class="explanation-box">
-                            <i class="bi bi-lightbulb me-1"></i>
-                            <strong>解析：</strong>${item.explanation}
+                        <div class="explanation-text mb-3 small">
+                            <i class="bi bi-lightbulb-fill text-warning me-1"></i>
+                            ${item.explanation}
                         </div>
                     ` : ''}
-                    <div class="mt-3">
-                        <button class="btn btn-retry btn-sm text-white me-2" onclick="practiceQuestion(${item.question_id})">
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary btn-sm px-4" onclick="practiceQuestion(${item.question_id})">
                             <i class="bi bi-arrow-clockwise me-1"></i>重新答题
-                        </button>
-                        <button class="btn btn-remove btn-sm text-white" onclick="removeQuestion(${item.question_id})">
-                            <i class="bi bi-check-lg me-1"></i>已掌握
                         </button>
                     </div>
                 </div>
@@ -266,11 +203,11 @@
 
         function renderEmpty() {
             document.getElementById('wrongbookList').innerHTML = `
-                <div class="empty-state">
-                    <i class="bi bi-check-circle"></i>
-                    <h5 class="text-muted">太棒了！没有错题！</h5>
-                    <p class="text-muted">继续保持，去刷更多题目吧</p>
-                    <a href="/" class="btn btn-primary mt-3">
+                <div class="text-center py-5">
+                    <i class="bi bi-patch-check text-success display-1"></i>
+                    <h4 class="mt-4 fw-bold">暂无错题记录</h4>
+                    <p class="text-muted">保持现状，继续加油吧！</p>
+                    <a href="/" class="btn btn-primary mt-3 px-4">
                         <i class="bi bi-arrow-left me-1"></i>返回刷题
                     </a>
                 </div>
@@ -292,31 +229,37 @@
         function renderPracticeQuestion() {
             const typeNames = {'single': '单选题', 'multi': '多选题', 'judge': '判断题'};
             document.getElementById('practiceType').textContent = typeNames[currentPractice.type];
-            document.getElementById('practiceType').className = 'badge bg-secondary me-2';
 
-            const optionsHtml = Object.entries(currentPractice.options).map(([key, value]) => `
-                <div class="form-check mb-2 p-3 border rounded" style="cursor: pointer;" onclick="selectPracticeOption('${key}')">
-                    <input class="form-check-input" type="radio" name="practiceOption" id="option${key}" value="${key}">
-                    <label class="form-check-label w-100" for="option${key}">
-                        <strong>${key}.</strong> ${value}
-                    </label>
+            const options = currentPractice.options || {};
+            const optionsHtml = Object.entries(options).map(([key, value]) => `
+                <div class="option-item mb-2" data-option="${key}" onclick="selectPracticeOption('${key}')">
+                    <strong>${key}</strong>
+                    <span>${value}</span>
                 </div>
             `).join('');
 
             document.getElementById('practiceQuestion').innerHTML = `
-                <p class="question-text mb-3">${currentPractice.content}</p>
-                ${currentPractice.type === 'multi' ? '<p class="text-muted small">（多选题）</p>' : ''}
+                <div class="mb-4">
+                    <p class="h5 fw-bold">${currentPractice.content}</p>
+                </div>
                 <div class="options-container">
-                    ${optionsHtml}
+                    ${optionsHtml || '<div class="alert alert-warning">此题目暂无备选答案，请检查题库格式。</div>'}
                 </div>
             `;
         }
 
         function selectPracticeOption(option) {
-            document.querySelectorAll('[name="practiceOption"]').forEach(el => {
-                el.checked = (el.value === option);
-            });
-            selectedAnswer = option;
+            if (currentPractice.type === 'multi') {
+                const el = document.querySelector(`[data-option="${option}"]`);
+                el.classList.toggle('selected');
+                const selected = [];
+                document.querySelectorAll('.option-item.selected').forEach(el => selected.push(el.dataset.option));
+                selectedAnswer = selected.sort().join('');
+            } else {
+                document.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected'));
+                document.querySelector(`[data-option="${option}"]`).classList.add('selected');
+                selectedAnswer = option;
+            }
         }
 
         async function submitPracticeAnswer() {
@@ -335,28 +278,33 @@
             });
 
             const data = await res.json();
-
             practiceModal.hide();
 
             if (data.is_correct) {
                 document.getElementById('resultTitle').innerHTML =
-                    '<i class="bi bi-check-circle text-success me-2"></i>回答正确';
+                    '<i class="bi bi-check-circle-fill text-success me-2"></i>回答正确';
                 document.getElementById('resultMessage').innerHTML =
-                    '<p class="text-success">恭喜！此题目已从错题本移除</p>';
+                    '<div class="alert alert-success border-0 bg-success bg-opacity-10 py-3">回答正确！请继续保持。</div>';
                 document.getElementById('explanationArea').style.display = 'none';
-
-                // 从错题本移除
-                await fetch(`/api/wrongbook/${currentPractice.id}`, { method: 'DELETE' });
+                
+                // 仅刷新列表，不自动移除
                 loadWrongbook();
             } else {
                 document.getElementById('resultTitle').innerHTML =
-                    '<i class="bi bi-x-circle text-danger me-2"></i>回答错误';
+                    '<i class="bi bi-x-circle-fill text-danger me-2"></i>回答错误';
+                
+                // 优先使用接口返回的正确答案，兜底使用当前题目对象的答案
+                const correctAnswer = data.correct_answer || currentPractice.answer || '未知';
+                const explanation = data.explanation || currentPractice.explanation || '暂无解析';
+                
                 document.getElementById('resultMessage').innerHTML = `
-                    <p class="text-danger">正确答案是：<strong>${data.correct_answer}</strong></p>
-                    <p>你的答案是：<strong>${data.user_answer}</strong></p>
+                    <div class="alert alert-danger border-0 bg-danger bg-opacity-10">
+                        <div class="small mb-1">正确答案</div>
+                        <div class="h5 fw-bold mb-0">${correctAnswer}</div>
+                    </div>
+                    <div class="text-muted small">你的回答：${selectedAnswer || '未选择'}</div>
                 `;
-                document.getElementById('explanationText').textContent =
-                    data.explanation || '暂无解析';
+                document.getElementById('explanationText').textContent = explanation;
                 document.getElementById('explanationArea').style.display = 'block';
             }
 
@@ -365,25 +313,30 @@
 
         function continuePractice() {
             resultModal.hide();
-            loadWrongbook();
+            // 如果还有错题，自动开始下一题练习
+            if (wrongbook.length > 0) {
+                const nextQ = wrongbook[0];
+                practiceQuestion(nextQ.question_id);
+            } else {
+                loadWrongbook();
+            }
         }
 
         async function removeQuestion(questionId) {
             if (!confirm('确定要移除此题吗？')) return;
-
             await fetch(`/api/wrongbook/${questionId}`, { method: 'DELETE' });
             loadWrongbook();
         }
 
         async function cleanWrongbook() {
             if (!confirm('确定要清空所有错题吗？此操作不可恢复！')) return;
-
             await fetch('/api/wrongbook/clean', { method: 'POST' });
             loadWrongbook();
         }
 
         function practiceAll() {
-            window.location.href = '/';
+            // 使用替换历史记录的方式，防止返回时陷入循环
+            window.location.replace('/?wrong_only=true');
         }
     </script>
 </body>

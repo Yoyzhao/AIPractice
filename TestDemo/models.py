@@ -63,8 +63,6 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 question_id INTEGER NOT NULL,
                 user_answer VARCHAR(50) NOT NULL,
-                correct_answer VARCHAR(50) NOT NULL,
-                explanation TEXT,
                 wrong_count INTEGER DEFAULT 1,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 last_reviewed DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -132,6 +130,14 @@ class Database:
         conn.commit()
         conn.close()
 
+    def clear_answer_records(self):
+        """清空所有答题记录"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM answer_records')
+        conn.commit()
+        conn.close()
+
     def get_question_by_id(self, question_id):
         """根据ID获取题目"""
         conn = self._get_connection()
@@ -143,8 +149,15 @@ class Database:
             return self._row_to_dict(row)
         return None
 
-    def get_random_question(self, question_type=None, exclude_ids=None):
-        """获取随机题目"""
+    def get_random_question(self, question_type=None, exclude_ids=None, pool='all'):
+        """
+        获取随机题目
+        
+        参数:
+            question_type - 题型
+            exclude_ids - 排除的ID列表
+            pool - 题目池范围: 'all' (全部), 'wrong' (错题本中), 'unseen' (从未做过)
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
 
@@ -159,6 +172,11 @@ class Database:
             placeholders = ','.join(['?'] * len(exclude_ids))
             query += f' AND id NOT IN ({placeholders})'
             params.extend(exclude_ids)
+
+        if pool == 'wrong':
+            query += ' AND id IN (SELECT question_id FROM wrong_questions)'
+        elif pool == 'unseen':
+            query += ' AND id NOT IN (SELECT DISTINCT question_id FROM answer_records)'
 
         query += ' ORDER BY RANDOM() LIMIT 1'
 
@@ -251,7 +269,7 @@ class Database:
         conn.close()
         return [dict(row) for row in rows]
 
-    def add_to_wrongbook(self, question_id, user_answer, correct_answer, explanation):
+    def add_to_wrongbook(self, question_id, user_answer):
         """添加错题到错题本"""
         conn = self._get_connection()
         cursor = conn.cursor()
@@ -273,9 +291,9 @@ class Database:
         else:
             cursor.execute('''
                 INSERT INTO wrong_questions
-                (question_id, user_answer, correct_answer, explanation)
-                VALUES (?, ?, ?, ?)
-            ''', (question_id, user_answer, correct_answer, explanation))
+                (question_id, user_answer)
+                VALUES (?, ?)
+            ''', (question_id, user_answer))
 
         conn.commit()
         conn.close()
@@ -292,8 +310,10 @@ class Database:
         """获取错题本"""
         conn = self._get_connection()
         cursor = conn.cursor()
+        # 始终从 questions 表获取最新的题目内容、答案和解析，保证一致性
         cursor.execute('''
-            SELECT w.*, q.content, q.type, q.options, q.answer as correct_answer
+            SELECT w.id, w.question_id, w.user_answer, w.wrong_count, w.last_reviewed,
+                   q.content, q.type, q.options, q.answer as correct_answer, q.explanation
             FROM wrong_questions w
             JOIN questions q ON w.question_id = q.id
             ORDER BY w.last_reviewed DESC
