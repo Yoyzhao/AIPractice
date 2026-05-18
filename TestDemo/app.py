@@ -7,6 +7,7 @@
 
 import os
 import random
+import threading
 from flask import Flask, render_template, jsonify, request
 from models import get_db
 from md_parser import MDParser
@@ -193,13 +194,16 @@ def get_next():
             'message': '该类型题目已答完！' if target_type else '题目已答完！'
         })
 
+    # 统一获取题目 ID，确保在错题本模式下也能正确返回 questions 表中的 ID
+    actual_question_id = question.get('question_id') or question.get('id')
+
     # 更新当前题目
     session_data['current_question'] = question
 
     return jsonify({
         'success': True,
         'question': {
-            'id': question['id'],
+            'id': actual_question_id,
             'type': question['type'],
             'type_name': {'single': '单选题', 'multi': '多选题', 'judge': '判断题'}[question['type']],
             'content': question['content'],
@@ -236,56 +240,63 @@ def submit_answer():
     """提交答案"""
     global session_data
 
-    data = request.get_json()
-    question_id = data.get('question_id')
-    user_answer = data.get('answer', '').upper()
+    try:
+        data = request.get_json()
+        question_id = data.get('question_id')
+        user_answer = data.get('answer', '').upper()
 
-    if not question_id or not user_answer:
-        return jsonify({'success': False, 'message': '参数不完整'})
+        if not question_id or not user_answer:
+            return jsonify({'success': False, 'message': '参数不完整'})
 
-    db = get_db()
+        db = get_db()
 
-    # 获取题目信息
-    question = db.get_question_by_id(question_id)
-    if question is None:
-        return jsonify({'success': False, 'message': '题目不存在'})
+        # 获取题目信息
+        question = db.get_question_by_id(question_id)
+        if question is None:
+            return jsonify({'success': False, 'message': '题目不存在'})
 
-    # 标准化答案（去除空格，排序多选题答案）
-    correct_answer = question['answer'].upper().replace(' ', '')
-    user_answer_normalized = user_answer.upper().replace(' ', '')
+        # 标准化答案（去除空格，排序多选题答案）
+        correct_answer = question['answer'].upper().replace(' ', '')
+        user_answer_normalized = user_answer.upper().replace(' ', '')
 
-    # 多选题排序答案以便比较
-    if question['type'] == 'multi':
-        correct_answer = ''.join(sorted(correct_answer))
-        user_answer_normalized = ''.join(sorted(user_answer_normalized))
+        # 多选题排序答案以便比较
+        if question['type'] == 'multi':
+            correct_answer = ''.join(sorted(correct_answer))
+            user_answer_normalized = ''.join(sorted(user_answer_normalized))
 
-    # 判断是否正确
-    is_correct = (correct_answer == user_answer_normalized)
+        # 判断是否正确
+        is_correct = (correct_answer == user_answer_normalized)
 
-    # 记录答题
-    db.add_answer_record(question_id, user_answer, is_correct)
+        # 记录答题
+        db.add_answer_record(question_id, user_answer, is_correct)
 
-    # 更新已答题ID列表
-    if question_id not in session_data['answered_ids']:
-        session_data['answered_ids'].append(question_id)
-        session_data['type_counts'][question['type']] += 1
+        # 更新已答题ID列表
+        if question_id not in session_data['answered_ids']:
+            session_data['answered_ids'].append(question_id)
+            session_data['type_counts'][question['type']] += 1
 
-    # 如果答错，记录到错题本
-    if not is_correct:
-        db.add_to_wrongbook(
-            question_id=question_id,
-            user_answer=user_answer
-        )
-    # 取消自动移除逻辑，改为用户手动在错题本页面移除
+        # 如果答错，记录到错题本
+        if not is_correct:
+            db.add_to_wrongbook(
+                question_id=question_id,
+                user_answer=user_answer
+            )
+        # 取消自动移除逻辑，改为用户手动在错题本页面移除
 
-    return jsonify({
-        'success': True,
-        'is_correct': is_correct,
-        'correct_answer': question['answer'],
-        'user_answer': user_answer,
-        'explanation': question.get('explanation', ''),
-        'question_type': question['type']
-    })
+        return jsonify({
+            'success': True,
+            'is_correct': is_correct,
+            'correct_answer': question['answer'],
+            'user_answer': user_answer,
+            'explanation': question.get('explanation', ''),
+            'question_type': question['type']
+        })
+    except Exception as e:
+        print(f"Error in submit_answer: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'message': f'服务器内部错误: {str(e)}'
+        }), 500
 
 
 @app.route('/api/wrongbook', methods=['GET'])
@@ -421,6 +432,11 @@ def import_questions():
     db = get_db()
     # 导入新题目（不清空旧题库，由用户决定是否清空）
     count = db.import_questions(all_questions)
+
+    # 导入新题后重置 Session，防止旧的已答题 ID 列表导致逻辑错误
+    session_data['answered_ids'] = []
+    session_data['type_counts'] = {'single': 0, 'multi': 0, 'judge': 0}
+    session_data['current_question'] = None
 
     # 更新 parser 中的题目列表以获取统计
     parser.questions = all_questions

@@ -383,6 +383,11 @@
             });
 
             const data = await res.json();
+            
+            if (!data.success) {
+                alert('提交失败: ' + (data.message || '未知错误'));
+                return;
+            }
 
             if (data.is_correct) {
                 await updateStats();
@@ -396,11 +401,11 @@
                 const explanation = data.explanation || currentQuestion.explanation || '暂无解析';
 
                 document.getElementById('resultMessage').innerHTML = `
-                    <div class="alert alert-danger border-0 bg-danger bg-opacity-10">
-                        <div class="small mb-1">正确答案</div>
-                        <div class="h5 fw-bold mb-0">${correctAnswer}</div>
+                    <div class="alert alert-success border-0 bg-success bg-opacity-10">
+                        <div class="small mb-1 text-success fw-bold">正确答案</div>
+                        <div class="h5 fw-bold mb-0 text-success">${correctAnswer}</div>
                     </div>
-                    <div class="text-muted small">你的答案：${selectedAnswer || '未选择'}</div>
+                    <div class="text-muted small mt-2">你的答案：${selectedAnswer || '未选择'}</div>
                 `;
                 document.getElementById('explanationText').textContent = explanation;
                 document.getElementById('explanationArea').style.display = 'block';
