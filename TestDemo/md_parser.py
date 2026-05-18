@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 MD文件解析器
-功能：解析Markdown格式的题库文件，提取题目、选项、答案、解析
+功能：解析最新统一格式的Markdown题库文件（AI+人工智能训练师-答案.md）
+支持从单个文件中自动按章节区分单选、多选、判断题。
 """
 
 import re
@@ -16,30 +17,48 @@ class MDParser:
     def __init__(self):
         self.questions = []
 
-    def parse_content(self, content, question_type):
-        """解析MD内容字符串"""
-        # 统一换行符，避免不同平台的换行符导致切分失败
+    def parse_content(self, content, default_type=None):
+        """
+        解析MD内容字符串
+        自动识别 `# （一）单选题` 等章节标题，忽略传入的 default_type
+        """
         content = content.replace('\r\n', '\n')
         
-        # 增强的分隔符正则：
-        # 1. 支持 3 个及以上的连字符 (-{3,})
-        # 2. 支持分隔符前后有空格 (\s*)
-        # 3. 允许分隔符出现在行首或行尾，不仅仅是 \n---\n
-        # 4. 过滤掉切分后产生的空块
-        blocks = re.split(r'\n\s*-{3,}\s*\n|^---+\s*\n|\n\s*---+$', content, flags=re.MULTILINE)
+        type_map = {
+            '单选': 'single',
+            '多选': 'multi',
+            '判断': 'judge'
+        }
         
+        sections = re.split(r'(#\s*（[一二三]）.*)', content)
         questions = []
-        for block in blocks:
-            block = block.strip()
-            if not block:
-                continue
-            parsed = self._parse_block(block, question_type)
-            if parsed:
-                questions.extend(parsed)
+        
+        for i in range(1, len(sections), 2):
+            header = sections[i]
+            sec_content = sections[i+1]
+            
+            q_type = default_type or 'single'
+            for key, val in type_map.items():
+                if key in header:
+                    q_type = val
+                    break
+                    
+            # 匹配题目块，使用非贪婪匹配并在遇到下一个 **数字** 块时停止
+            blocks = re.findall(r'\*\*(\d+)\*\*\s*\n(.*?)(?=\n\*\*\d+\*\*\s*\n|\Z)', sec_content, re.DOTALL)
+            
+            # 使用字典去重，保留相同题号的最后一次解析（因为后面生成的带完整选项）
+            unique_blocks = {}
+            for q_num, q_text in blocks:
+                unique_blocks[q_num] = q_text
+                
+            for q_num, q_text in unique_blocks.items():
+                q_obj = self._parse_block(q_num, q_text, q_type)
+                if q_obj:
+                    questions.append(q_obj)
 
         return questions
 
-    def parse_file(self, file_path, question_type):
+    def parse_file(self, file_path, default_type=None):
         """解析单个MD文件"""
         if not os.path.exists(file_path):
             print(f"文件不存在: {file_path}")
@@ -48,193 +67,80 @@ class MDParser:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        return self.parse_content(content, question_type)
+        return self.parse_content(content, default_type)
 
-    def _parse_block(self, block, question_type):
-        """解析单个题目块，可能包含标题和多个题目"""
-        if not block:
-            return []
-
-        lines = [l for l in block.split('\n') if l.strip()]
-        if not lines:
-            return []
-
-        questions = []
-        current_question = None
-
-        for line in lines:
-            line = line.strip()
-
-            if line.startswith('#'):
-                continue
-
-            # 1. 强匹配识别：如果匹配到数字题号，则强制开启一个新题目
-            if re.match(r'^\d+[、．.]', line):
-                if current_question and current_question['content']:
-                    q = self._finish_question(current_question, question_type)
-                    if q:
-                        questions.append(q)
-                
-                content_match = re.match(r'^\d+[．.、]\s*(.+)', line)
-                current_question = {
-                    'type': question_type,
-                    'content': content_match.group(1) if content_match else line,
-                    'options': {},
-                    'answer': '',
-                    'explanation': ''
-                }
-            # 2. 弱匹配识别：如果当前没有正在解析的题目，且本行不是答案/解析/选项，则将其作为新题目起始
-            elif current_question is None:
-                is_metadata = '**答案' in line or '**解析' in line or self._is_option_line(line)
-                if not is_metadata:
-                    current_question = {
-                        'type': question_type,
-                        'content': line,
-                        'options': {},
-                        'answer': '',
-                        'explanation': ''
-                    }
-            # 3. 内容填充：已有题目，则将行内容交给 _parse_line 处理（识别选项、答案或追加内容）
-            else:
-                self._parse_line(line, current_question, question_type)
-
-        if current_question and current_question['content']:
-            q = self._finish_question(current_question, question_type)
-            if q:
-                questions.append(q)
-
-        return questions
-
-    def _is_option_line(self, line):
-        """判断是否为疑似选项行"""
-        line = line.strip()
-        # 只要是以 (A), A., A、 或 A 后面跟空格开头的，都视为疑似选项
-        return bool(re.match(r'^([（(][A-E][）)]|[A-E][\.、\s])', line))
-
-    def _finish_question(self, question, question_type):
-        """完成题目解析，验证并返回"""
-        # 清理题目内容
-        question['content'] = question['content'].strip()
+    def _parse_block(self, question_num, text, q_type):
+        """解析单个题目块（提取题目、答案、选项、解析）"""
+        stem_match = re.search(r'\*\*【题干】\*\*\s*(.*?)(?=\n\*\*|$)', text, re.DOTALL)
+        options_match = re.search(r'\*\*【备选项】\*\*\s*(.*?)(?=\n\*\*|$)', text, re.DOTALL)
+        ans_match = re.search(r'\*\*【答案】\*\*\s*(.*?)(?=\n\*\*|$)', text, re.DOTALL)
+        exp_match = re.search(r'\*\*【解析】\*\*\s*(.*?)(?=\n\*\*|$)', text, re.DOTALL)
         
-        if question_type in ['single', 'multi']:
-            question['options'] = question.get('options', {})
-            if not question['options']:
-                return None
+        if not stem_match or not ans_match:
+            return None
+            
+        q_content = stem_match.group(1).strip()
+        ans_str = ans_match.group(1).strip()
+        explanation = exp_match.group(1).strip() if exp_match else ''
+        
+        # 尝试提取选项
+        options = {}
+        if q_type in ['single', 'multi']:
+            # 如果存在【备选项】，从中提取；否则尝试从题干中提取（容错）
+            opts_text = ""
+            if options_match:
+                opts_text = options_match.group(1).strip()
+            else:
+                # 尝试从题干提取 A. B. C. D.
+                opt_start = re.search(r'([A-Ea-e])[.、]\s*', q_content)
+                if opt_start:
+                    opts_text = q_content[opt_start.start():].strip()
+                    q_content = q_content[:opt_start.start()].strip()
+            
+            if opts_text:
+                # 处理由于大模型可能输出重复选项块的问题（如A...D A...D）
+                # 提取第一个完整的选项集
+                found_keys = set()
+                for m in re.finditer(r'([A-Ea-e])[.、]\s*(.*?)(?=\n[A-Ea-e][.、]|$)', opts_text, re.DOTALL):
+                    opt_key = m.group(1).upper()
+                    opt_val = m.group(2).strip()
+                    if opt_key not in found_keys:
+                        options[opt_key] = opt_val
+                        found_keys.add(opt_key)
             
             # 多选题答案排序
-            if question_type == 'multi' and question['answer']:
-                question['answer'] = ''.join(sorted(question['answer'].upper()))
-                
-        elif question_type == 'judge':
-            question['options'] = {'A': '正确', 'B': '错误'}
-
-        if not question['content'] or not question['answer']:
-            return None
-
-        if question_type in ['single', 'multi'] and len(question['options']) < 2:
-            return None
-
-        return question
-
-    def _parse_line(self, line, question, question_type):
-        """解析题目中的一行"""
-        line = line.strip()
-        if not line:
-            return False
-
-        # 1. 识别答案
-        if '**答案' in line:
-            if question_type == 'judge':
-                # 增强判断题识别
-                if any(x in line for x in ['正确', '对', '√', 'T', 'TRUE']):
-                    question['answer'] = 'A'
-                elif any(x in line for x in ['错误', '错', '×', 'F', 'FALSE']):
-                    question['answer'] = 'B'
-            else:
-                answer_match = re.search(r'\*\*答案[:：]?\s*([A-Za-e]+)', line)
-                if answer_match:
-                    question['answer'] = answer_match.group(1).upper()
-            return True
-
-        # 2. 识别解析
-        elif '**解析' in line:
-            exp_match = re.search(r'\*\*解析[:：]?\s*(.+)', line)
-            if exp_match:
-                question['explanation'] = exp_match.group(1).strip()
-            return True
-
-        # 3. 识别选项 (仅限单选/多选)
-        elif question_type in ['single', 'multi']:
-            if self._parse_options_line(line, question['options']):
-                return True
-        
-        # 4. 如果以上都不是，且题目已经开始，则累加到题目内容
-        if question['content']:
-            # 避免重复累加选项（如果选项格式非常特殊没被识别到，至少不要弄乱题目内容）
-            # 只有当行不符合“疑似选项”特征时才累加
-            if not self._is_option_line(line):
-                question['content'] += " " + line
+            answer = ''.join(sorted(re.sub(r'[^A-Ea-e]', '', ans_str).upper()))
         else:
-            question['content'] = line
-            
-        return True
+            options = {'A': '正确', 'B': '错误'}
+            if ans_str in ['对', '√', 'T', 'TRUE', 'A', '正确']:
+                answer = 'A'
+            else:
+                answer = 'B'
 
-    def _parse_options_line(self, line, options_dict):
-        """解析选项行，支持单行多个选项或单行单个选项"""
-        line = line.strip()
-        if not line:
-            return False
+        # 验证题目完整性
+        if not q_content or not answer:
+            return None
+        if q_type in ['single', 'multi'] and len(options) < 2:
+            return None
 
-        # 尝试匹配多种格式的选项: (A) A. A、 A
-        # 我们使用更通用的正则，优先匹配带括号或点的
-        
-        # 模式1: (A) 或 （A） 开头的选项
-        pattern_with_paren = r'[（(]([A-E])[）)]\s*([^（(]+)'
-        matches = re.findall(pattern_with_paren, line)
-        
-        if not matches:
-            # 模式2: A. 或 A、 或 A 开头的选项 (单行单个)
-            pattern_single = r'^([A-E])[\.、\s]\s*(.+)$'
-            match = re.match(pattern_single, line)
-            if match:
-                matches = [(match.group(1), match.group(2))]
-
-        if matches:
-            for key, val in matches:
-                key = key.upper()
-                if key not in options_dict:
-                    options_dict[key] = val.strip()
-            return True
-            
-        return False
-
-    def parse_all(self, md_dir):
-        """解析目录下所有MD文件"""
-        questions = []
-
-        type_mapping = {
-            '单选题': 'single',
-            '多选题': 'multi',
-            '判断题': 'judge'
+        return {
+            'type': q_type,
+            'content': q_content,
+            'options': options,
+            'answer': answer,
+            'explanation': explanation
         }
 
+    def parse_all(self, md_dir):
+        """解析目录下所有MD文件（兼容旧版调用逻辑）"""
+        questions = []
         for filename in os.listdir(md_dir):
             if not filename.endswith('.md'):
                 continue
-
-            question_type = None
-            for key, value in type_mapping.items():
-                if key in filename:
-                    question_type = value
-                    break
-
-            if question_type is None:
-                continue
-
+            
             file_path = os.path.join(md_dir, filename)
-            print(f"正在解析: {filename} ({question_type})")
-
-            file_questions = self.parse_file(file_path, question_type)
+            print(f"正在解析: {filename}")
+            file_questions = self.parse_file(file_path)
             questions.extend(file_questions)
             print(f"  解析完成，共 {len(file_questions)} 道题目")
 
@@ -259,10 +165,11 @@ class MDParser:
 def main():
     """测试解析器"""
     parser = MDParser()
-    md_dir = '../理论'
+    md_file = '../理论/AI+训练师理论题库及解析_V3.md'
 
-    if os.path.exists(md_dir):
-        questions = parser.parse_all(md_dir)
+    if os.path.exists(md_file):
+        questions = parser.parse_file(md_file)
+        parser.questions = questions
         stats = parser.get_statistics()
 
         print("\n" + "=" * 50)
@@ -274,6 +181,7 @@ def main():
 
         if questions:
             print("\n第一道题示例：")
+            print(f"类型: {questions[0]['type']}")
             print(f"内容: {questions[0]['content']}")
             print(f"选项: {questions[0]['options']}")
             print(f"答案: {questions[0]['answer']}")
@@ -284,7 +192,7 @@ def main():
             json.dump(questions, f, ensure_ascii=False, indent=2)
         print(f"\n已保存到: {output_file}")
     else:
-        print(f"目录不存在: {md_dir}")
+        print(f"文件不存在: {md_file}")
 
 
 if __name__ == '__main__':

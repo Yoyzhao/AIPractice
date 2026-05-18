@@ -394,31 +394,16 @@ def import_questions():
 
     parser = MDParser()
     all_questions = []
-    
-    type_mapping = {
-        '单选题': 'single',
-        '多选题': 'multi',
-        '判断题': 'judge'
-    }
 
     for file in files:
         filename = file.filename
         if not filename.endswith('.md'):
             continue
 
-        question_type = None
-        for key, value in type_mapping.items():
-            if key in filename:
-                question_type = value
-                break
-
-        if question_type is None:
-            # 如果文件名不含关键字，默认尝试解析为单选题或根据内容判断（这里简化处理）
-            question_type = 'single'
-
         try:
             content = file.read().decode('utf-8')
-            file_questions = parser.parse_content(content, question_type)
+            # 无论文件名是什么，交由 parser 内部去通过 # （一）单选题 等标题来识别题型
+            file_questions = parser.parse_content(content)
             all_questions.extend(file_questions)
         except Exception as e:
             print(f"解析文件 {filename} 出错: {str(e)}")
@@ -426,7 +411,7 @@ def import_questions():
     if not all_questions:
         return jsonify({
             'success': False,
-            'message': '未能从所选文件中解析出任何题目，请确保文件名包含“单选题”、“多选题”或“判断题”关键字。'
+            'message': '未能从所选文件中解析出任何题目，请确保文件格式规范并包含“# （一）单选题”等章节标题。'
         })
 
     db = get_db()
