@@ -377,6 +377,81 @@ def get_stats():
     })
 
 
+@app.route('/api/questions/all', methods=['GET'])
+def get_all_questions_by_type():
+    """获取所有题目（按题型分类）"""
+    db = get_db()
+
+    # 获取查询参数（可选，按题型筛选）
+    question_type = request.args.get('type')  # single, multi, judge
+
+    try:
+        if question_type:
+            # 获取指定题型的所有题目
+            questions = db.get_questions_by_type(question_type)
+            return jsonify({
+                'success': True,
+                'type': question_type,
+                'type_name': {'single': '单选题', 'multi': '多选题', 'judge': '判断题'}.get(question_type, '未知'),
+                'count': len(questions),
+                'questions': [{
+                    'id': q['id'],
+                    'type': q['type'],
+                    'type_name': {'single': '单选题', 'multi': '多选题', 'judge': '判断题'}.get(q['type'], '未知'),
+                    'content': q['content'],
+                    'options': json.loads(q['options']) if isinstance(q['options'], str) else q['options'],
+                    'answer': q['answer'],
+                    'explanation': q.get('explanation', '') or ''
+                } for q in questions]
+            })
+        else:
+            # 获取所有题型
+            single_questions = db.get_questions_by_type('single')
+            multi_questions = db.get_questions_by_type('multi')
+            judge_questions = db.get_questions_by_type('judge')
+
+            def format_questions(questions):
+                return [{
+                    'id': q['id'],
+                    'type': q['type'],
+                    'type_name': {'single': '单选题', 'multi': '多选题', 'judge': '判断题'}.get(q['type'], '未知'),
+                    'content': q['content'],
+                    'options': json.loads(q['options']) if isinstance(q['options'], str) else q['options'],
+                    'answer': q['answer'],
+                    'explanation': q.get('explanation', '') or ''
+                } for q in questions]
+
+            return jsonify({
+                'success': True,
+                'count': len(single_questions) + len(multi_questions) + len(judge_questions),
+                'by_type': {
+                    'single': {
+                        'type': 'single',
+                        'type_name': '单选题',
+                        'count': len(single_questions),
+                        'questions': format_questions(single_questions)
+                    },
+                    'multi': {
+                        'type': 'multi',
+                        'type_name': '多选题',
+                        'count': len(multi_questions),
+                        'questions': format_questions(multi_questions)
+                    },
+                    'judge': {
+                        'type': 'judge',
+                        'type_name': '判断题',
+                        'count': len(judge_questions),
+                        'questions': format_questions(judge_questions)
+                    }
+                }
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        })
+
+
 @app.route('/api/import', methods=['POST'])
 def import_questions():
     """导入题库（从上传的文件）"""
